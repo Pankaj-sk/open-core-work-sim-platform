@@ -1,0 +1,104 @@
+{
+  "scenarios": [
+    {
+      "id": "team_meeting",
+      "name": "Team Meeting Simulation",
+      "description": "Lead a team meeting with various personalities and handle conflicts professionally",
+      "duration": 30,
+      "difficulty": "easy",
+      "roles": ["manager", "developer", "designer"],
+      "objectives": [
+        "Facilitate productive discussion",
+        "Resolve team conflicts",
+        "Set clear action items",
+        "Maintain team morale"
+      ],
+      "challenges": [
+        "Team member disagreement on project approach",
+        "Tight deadline pressure",
+        "Resource allocation conflicts",
+        "Communication breakdowns"
+      ]
+    },
+    {
+      "id": "client_presentation",
+      "name": "Client Presentation",
+      "description": "Present a proposal to a challenging client and handle objections effectively",
+      "duration": 45,
+      "difficulty": "medium",
+      "roles": ["presenter", "client", "technical_lead"],
+      "objectives": [
+        "Deliver compelling presentation",
+        "Address client concerns",
+        "Negotiate terms effectively",
+        "Build client confidence"
+      ],
+      "challenges": [
+        "Client skepticism about solution",
+        "Budget constraints",
+        "Timeline objections",
+        "Technical questions"
+      ]
+    },
+    {
+      "id": "crisis_management",
+      "name": "Crisis Management",
+      "description": "Handle a workplace crisis with multiple stakeholders and urgent decisions",
+      "duration": 60,
+      "difficulty": "hard",
+      "roles": ["manager", "hr", "legal", "communications"],
+      "objectives": [
+        "Assess crisis situation quickly",
+        "Coordinate response across departments",
+        "Communicate effectively with stakeholders",
+        "Minimize damage and risk"
+      ],
+      "challenges": [
+        "Conflicting stakeholder interests",
+        "Legal implications",
+        "Public relations concerns",
+        "Time pressure for decisions"
+      ]
+    },
+    {
+      "id": "performance_review",
+      "name": "Performance Review",
+      "description": "Conduct a difficult performance review with constructive feedback",
+      "duration": 40,
+      "difficulty": "medium",
+      "roles": ["manager", "employee", "hr"],
+      "objectives": [
+        "Provide constructive feedback",
+        "Set performance goals",
+        "Address performance issues",
+        "Maintain professional relationship"
+      ],
+      "challenges": [
+        "Defensive employee response",
+        "Performance improvement plan",
+        "Compensation discussions",
+        "Career development planning"
+      ]
+    },
+    {
+      "id": "project_handoff",
+      "name": "Project Handoff",
+      "description": "Transfer project ownership and knowledge to a new team member",
+      "duration": 35,
+      "difficulty": "easy",
+      "roles": ["outgoing_lead", "incoming_lead", "stakeholder"],
+      "objectives": [
+        "Transfer complete project knowledge",
+        "Ensure smooth transition",
+        "Address stakeholder concerns",
+        "Maintain project momentum"
+      ],
+      "challenges": [
+        "Knowledge gaps",
+        "Stakeholder resistance",
+        "Timeline constraints",
+        "Team dynamics adjustment"
+      ]
+    }
+  ]
+} 
