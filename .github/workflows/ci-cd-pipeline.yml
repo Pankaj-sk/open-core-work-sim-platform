@@ -1,0 +1,222 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY_BACKEND: work-sim-platform-backend
+  ECR_REPOSITORY_FRONTEND: work-sim-platform-frontend
+  ECS_CLUSTER: work-sim-platform-cluster
+  ECS_SERVICE_BACKEND: work-sim-platform-backend-service
+  ECS_SERVICE_FRONTEND: work-sim-platform-frontend-service
+  ECS_TASK_DEFINITION_BACKEND: work-sim-platform-backend-task
+  ECS_TASK_DEFINITION_FRONTEND: work-sim-platform-frontend-task
+
+jobs:
+  # Development Environment Pipeline
+  dev-test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          cd core
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run Python tests
+        run: |
+          cd core
+          pytest tests/ --cov=. --cov-report=xml
+
+      - name: Run linting
+        run: |
+          cd core
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm test -- --coverage --watchAll=false
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+  dev-deploy:
+    needs: dev-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/Dockerfile.backend -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+
+      - name: Deploy to ECS (Development)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER-dev --service $ECS_SERVICE_BACKEND-dev --force-new-deployment
+          aws ecs update-service --cluster $ECS_CLUSTER-dev --service $ECS_SERVICE_FRONTEND-dev --force-new-deployment
+
+  # Production Environment Pipeline
+  prod-test:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          cd core
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8 mypy
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run comprehensive Python tests
+        run: |
+          cd core
+          pytest tests/ --cov=. --cov-report=xml --cov-report=html
+          mypy . --ignore-missing-imports
+
+      - name: Run security scan
+        run: |
+          cd core
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json
+
+      - name: Run frontend tests and build
+        run: |
+          cd frontend
+          npm test -- --coverage --watchAll=false
+          npm run build
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./core/coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  prod-deploy:
+    needs: prod-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/Dockerfile.backend -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG .
+          docker build -f docker/Dockerfile.backend -t $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:latest
+
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f docker/Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG .
+          docker build -f docker/Dockerfile.frontend -t $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest
+
+      - name: Deploy to ECS (Production)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER-prod --service $ECS_SERVICE_BACKEND-prod --force-new-deployment
+          aws ecs update-service --cluster $ECS_CLUSTER-prod --service $ECS_SERVICE_FRONTEND-prod --force-new-deployment
+
+      - name: Update CloudFront distribution
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+
+      - name: Notify deployment
+        run: |
+          echo "Production deployment completed successfully!"
+          echo "Backend: https://api.worksimplatform.com"
+          echo "Frontend: https://worksimplatform.com" 

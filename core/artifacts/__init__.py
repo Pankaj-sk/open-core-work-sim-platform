@@ -1,0 +1,1 @@
+# Artifacts generation system for the work simulation platform 

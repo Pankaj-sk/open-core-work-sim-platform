@@ -1,6 +1,6 @@
 # Work Simulation Platform
 
-A full-stack AI-powered work simulation platform with FastAPI backend and React frontend.
+A full-stack AI-powered work simulation platform with FastAPI backend and React frontend for practicing real-world job roles and generating productivity artifacts.
 
 ## 🚀 Features
 
@@ -62,10 +62,47 @@ The project uses GitHub Actions for CI/CD:
 - Backend deploys to AWS Lambda
 - Frontend deploys to S3/Amplify
 
+## 💼 Commercial Use
+
+This project is open source under the **Apache 2.0 License**, which allows for commercial use, modification, and distribution. However, if you plan to:
+
+- **Use this in a commercial product or service**
+- **Deploy as a SaaS platform**
+- **Integrate into enterprise training programs**
+- **Resell or redistribute commercially**
+
+Please reach out to discuss licensing terms and potential collaboration opportunities.
+
+**Contact**: [your-email@domain.com] or raise an issue for commercial inquiries.
+
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for development guidelines.
 
+### Open Source Model
+- ✅ **Free to use** for personal and educational purposes
+- ✅ **Free to modify** and contribute back
+- ✅ **Commercial use allowed** under Apache 2.0
+- ⚠️ **Commercial licensing** available for enterprise features
+
 ## 📝 License
 
-MIT License - see [LICENSE](./LICENSE) for details. 
+**Apache License 2.0** - see [LICENSE](./LICENSE) for details.
+
+This license provides:
+- **Patent protection** for contributors
+- **Commercial use rights**
+- **Modification and distribution permissions**
+- **Attribution requirements**
+
+## 🌟 Why Apache 2.0?
+
+We chose Apache 2.0 because it:
+- **Protects contributors** from patent litigation
+- **Allows commercial use** while maintaining open source benefits
+- **Provides clear terms** for enterprise adoption
+- **Enables dual licensing** for premium features
+
+---
+
+**Built with ❤️ for the open source community** 
