@@ -1,6 +1,8 @@
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 import uuid
+from datetime import datetime
+from ..config import settings
 
 
 class AgentPersona(BaseModel):
@@ -91,7 +93,7 @@ class AgentManager:
             "id": str(uuid.uuid4()),
             "sender": "user",
             "message": message,
-            "timestamp": "2024-01-01T12:00:00Z"
+            "timestamp": datetime.now().isoformat()
         })
         
         # Generate response based on agent personality and role
@@ -102,14 +104,102 @@ class AgentManager:
             "id": str(uuid.uuid4()),
             "sender": agent.name,
             "message": response,
-            "timestamp": "2024-01-01T12:01:00Z"
+            "timestamp": datetime.now().isoformat()
         })
         
         return response
     
     def _generate_agent_response(self, agent: AgentPersona, message: str) -> str:
-        """Generate a response based on agent's personality and role"""
-        # Mock responses based on agent role and personality
+        """Generate a response using custom model API"""
+        try:
+            # TODO: Replace this with your custom model API call
+            # Example implementation:
+            
+            # Build the prompt with agent context
+            system_prompt = f"""You are {agent.name}, a {agent.role}.
+Personality: {agent.personality}
+Background: {agent.background}
+Skills: {', '.join(agent.skills)}
+
+Respond as this character would in a workplace simulation. Keep responses professional but true to the personality."""
+            
+            # Call your custom model API here
+            response = self._call_custom_model(system_prompt, message)
+            return response
+            
+        except Exception as e:
+            print(f"Error calling custom model: {e}")
+            # Fallback to mock response if API fails
+            return self._get_fallback_response(agent.id)
+    
+    def _call_custom_model(self, system_prompt: str, user_message: str) -> str:
+        """
+        Call your custom model API
+        Update this method with your actual API integration
+        """
+        import requests
+        
+        # Use settings from config
+        api_url = settings.custom_model_api_url
+        api_key = settings.custom_model_api_key
+        
+        if not api_url:
+            raise Exception("Custom model API URL not configured")
+        
+        # Example payload - adjust for your API format
+        payload = {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            "max_tokens": settings.custom_model_max_tokens,
+            "temperature": settings.custom_model_temperature,
+            "model": settings.custom_model_name
+        }
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        # Add API key if provided
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        
+        try:
+            response = requests.post(
+                api_url,
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                # Adjust this based on your API response format
+                result = response.json()
+                
+                # Common response formats - adjust as needed:
+                # OpenAI format: result["choices"][0]["message"]["content"]
+                # Claude format: result["content"][0]["text"]
+                # Custom format: adjust accordingly
+                
+                if "choices" in result:
+                    return result["choices"][0]["message"]["content"]
+                elif "content" in result:
+                    return result["content"]
+                elif "response" in result:
+                    return result["response"]
+                else:
+                    return str(result)
+            else:
+                raise Exception(f"API call failed: {response.status_code} - {response.text}")
+                
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error calling custom model: {e}")
+        except Exception as e:
+            raise Exception(f"Error calling custom model: {e}")
+    
+    def _get_fallback_response(self, agent_id: str) -> str:
+        """Fallback responses if custom model fails"""
         responses = {
             "manager_001": [
                 "I understand your concern. Let's approach this systematically and ensure everyone is aligned on our goals.",
@@ -135,10 +225,12 @@ class AgentManager:
         
         # Return a contextual response based on the agent
         import random
-        return random.choice(responses.get(agent.id, ["I understand. Let me think about this."]))
+        return random.choice(responses.get(agent_id, ["I understand. Let me think about this."]))
     
     def get_conversation_history(self, agent_id: str) -> List[Dict]:
         """Get conversation history with a specific agent"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent {agent_id} not found")
         return self.conversation_history.get(agent_id, [])
     
     def reset_conversation(self, agent_id: str):

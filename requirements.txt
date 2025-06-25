@@ -1,0 +1,6 @@
+# Main application requirements
+-r core/requirements.txt
+
+# Development tools
+setuptools>=68.0.0
+wheel>=0.41.0

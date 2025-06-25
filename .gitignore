@@ -1,1 +1,117 @@
- 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Debug and temporary files
+debug_*.py
+test_api_*.py
+test_basic_*.py
+test_complete_*.py
+test_invalid_*.py
+test_simple_*.py
+
+# Test reports and results (keep only final reports)
+COMPREHENSIVE_TEST_REPORT_*.md
+FINAL_SYSTEM_CHECK.md
+FINAL_SYSTEM_STATUS.md
+FINAL_TEST_RESULTS.md
+TEST_RESULTS.md
+DEEP_TEST_ANALYSIS.md
+test_results_*.json
+integration_test_results.json
+deep_test_results.json
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js (for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+
+# Frontend build
+/frontend/build
+/frontend/dist
+/frontend/.next
+
+# Logs
+logs
+*.log
+
+# Docker
+*.tar
+.dockerignore
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# AWS
+.aws/
+
+# Temporary files
+*.tmp
+*.temp

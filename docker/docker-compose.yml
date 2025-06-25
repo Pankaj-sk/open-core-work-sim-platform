@@ -11,7 +11,8 @@ services:
       - ENVIRONMENT=development
       - CORS_ORIGINS=http://localhost:3000
     volumes:
-      - ../backend:/app
+      - ../core:/app/core
+      - ../main.py:/app/main.py
     depends_on:
       - redis
     networks:

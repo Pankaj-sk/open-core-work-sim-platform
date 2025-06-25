@@ -28,12 +28,17 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: Optional[str] = None
     
+    # Custom Model Configuration
+    custom_model_api_url: Optional[str] = None
+    custom_model_api_key: Optional[str] = None
+    custom_model_name: str = "custom-model"
+    custom_model_max_tokens: int = 150
+    custom_model_temperature: float = 0.7
+    
     # CORS
     cors_origins: list = ["http://localhost:3000"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {"env_file": ".env", "case_sensitive": True}
 
 
 settings = Settings() 
