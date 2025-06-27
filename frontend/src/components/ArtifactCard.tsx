@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Download, Eye, Calendar } from 'lucide-react';
 
 interface Artifact {
@@ -12,35 +12,28 @@ interface Artifact {
 }
 
 const ArtifactCard: React.FC = () => {
-  const artifacts: Artifact[] = [
-    {
-      id: '1',
-      title: 'Team Meeting Minutes',
-      type: 'meeting_minutes',
-      description: 'Automated summary of the team meeting with action items and key decisions',
-      createdAt: '2024-01-01 12:05 PM',
-      status: 'generated',
-      size: '2.3 KB'
-    },
-    {
-      id: '2',
-      title: 'Performance Assessment Report',
-      type: 'performance_review',
-      description: 'Comprehensive evaluation of communication and leadership skills',
-      createdAt: '2024-01-01 12:08 PM',
-      status: 'generated',
-      size: '15.7 KB'
-    },
-    {
-      id: '3',
-      title: 'Action Items Summary',
-      type: 'action_items',
-      description: 'List of tasks and responsibilities assigned during the simulation',
-      createdAt: '2024-01-01 12:10 PM',
-      status: 'processing',
-      size: '1.1 KB'
-    }
-  ];
+  const [artifacts] = useState<Artifact[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // For now, show empty state instead of hardcoded data
+    // TODO: Implement real artifact fetching from backend API
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="flex items-center space-x-2 mb-6">
+          <FileText className="text-primary-600" size={20} />
+          <h2 className="text-xl font-semibold text-gray-900">Generated Artifacts</h2>
+        </div>
+        <div className="text-center py-8">
+          <div className="text-gray-600">Loading artifacts...</div>
+        </div>
+      </div>
+    );
+  }
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -85,58 +78,65 @@ const ArtifactCard: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900">Generated Artifacts</h2>
       </div>
       
-      <div className="space-y-4">
-        {artifacts.map((artifact) => (
-          <div key={artifact.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3 flex-1">
-                <div className="flex-shrink-0">
-                  {getTypeIcon(artifact.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h3 className="text-sm font-medium text-gray-900 truncate">{artifact.title}</h3>
-                    {getStatusBadge(artifact.status)}
+      {artifacts.length === 0 ? (
+        <div className="text-center py-8">
+          <div className="text-gray-500 mb-2">No artifacts generated yet</div>
+          <p className="text-sm text-gray-400">Artifacts will be automatically generated based on your simulation interactions</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {artifacts.map((artifact) => (
+            <div key={artifact.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3 flex-1">
+                  <div className="flex-shrink-0">
+                    {getTypeIcon(artifact.type)}
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">{artifact.description}</p>
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    <div className="flex items-center space-x-1">
-                      <Calendar size={12} />
-                      <span>{artifact.createdAt}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h3 className="text-sm font-medium text-gray-900 truncate">{artifact.title}</h3>
+                      {getStatusBadge(artifact.status)}
                     </div>
-                    {artifact.size && (
-                      <span>{artifact.size}</span>
-                    )}
+                    <p className="text-sm text-gray-600 mb-2">{artifact.description}</p>
+                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <Calendar size={12} />
+                        <span>{artifact.createdAt}</span>
+                      </div>
+                      {artifact.size && (
+                        <span>{artifact.size}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleView(artifact)}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                  title="View artifact"
-                >
-                  <Eye size={16} />
-                </button>
-                {artifact.status === 'generated' && (
+                
+                <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => handleDownload(artifact)}
+                    onClick={() => handleView(artifact)}
                     className="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                    title="Download artifact"
+                    title="View artifact"
                   >
-                    <Download size={16} />
+                    <Eye size={16} />
                   </button>
-                )}
+                  {artifact.status === 'generated' && (
+                    <button
+                      onClick={() => handleDownload(artifact)}
+                      className="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                      title="Download artifact"
+                    >
+                      <Download size={16} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <p className="text-sm text-gray-600">
-          Artifacts are automatically generated based on your simulation interactions and can be downloaded for review.
+          Artifacts will be automatically generated based on your simulation interactions and can be downloaded for review.
         </p>
       </div>
     </div>

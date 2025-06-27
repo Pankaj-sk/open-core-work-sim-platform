@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
@@ -8,7 +9,7 @@ import AgentsPage from './pages/AgentsPage';
 
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="min-h-screen bg-gray-50">
         <Header />
         <main className="container mx-auto px-4 py-8">

@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pydantic import Field
 import os
 
 
@@ -28,12 +29,42 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: Optional[str] = None
     
+    # Google API
+    google_api_key: Optional[str] = Field(None, alias="GOOGLE_API_KEY")
+    gemini_model: str = Field("gemini-1.5-flash", alias="GEMINI_MODEL")
+    
+    # Anthropic Claude
+    anthropic_api_key: Optional[str] = None
+    claude_model: str = "claude-3-sonnet-20240229"
+    
+    # Azure OpenAI
+    azure_openai_key: Optional[str] = None
+    azure_openai_endpoint: Optional[str] = None
+    azure_openai_version: str = "2024-02-15-preview"
+    azure_openai_deployment: str = "gpt-4"
+    
+    # Hugging Face
+    huggingface_api_key: Optional[str] = None
+    huggingface_model: str = "microsoft/DialoGPT-large"
+    
+    # Local/Ollama
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama2"
+    
+    # Custom Model Configuration (AWS-hosted model)
+    custom_model_api_url: Optional[str] = None
+    custom_model_api_key: Optional[str] = None
+    custom_model_name: str = "custom-model"
+    custom_model_max_tokens: int = 150
+    custom_model_temperature: float = 0.7
+    custom_model_payload_format: str = "openai"  # openai, anthropic, generic, custom
+    custom_model_auth_method: str = "bearer"  # bearer, api-key, custom
+    custom_model_auth_header: str = "Authorization"  # custom auth header name
+    
     # CORS
     cors_origins: list = ["http://localhost:3000"]
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {"env_file": ".env", "case_sensitive": False, "extra": "allow", "populate_by_name": True}
 
 
-settings = Settings() 
+settings = Settings()

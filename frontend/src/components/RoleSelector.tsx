@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Users } from 'lucide-react';
 
 interface Role {
@@ -8,42 +8,72 @@ interface Role {
   difficulty: string;
 }
 
-const RoleSelector: React.FC = () => {
+interface RoleSelectorProps {
+  selectedAgent: string;
+  onAgentChange: (agentId: string) => void;
+}
+
+const RoleSelector: React.FC<RoleSelectorProps> = ({ selectedAgent, onAgentChange }) => {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+
+  // Map role IDs to agent IDs
+  const roleToAgentMap: { [key: string]: string } = {
+    'manager': 'manager_001',
+    'developer': 'developer_001', 
+    'client': 'client_001',
+    'hr': 'hr_001',
+    'intern': 'intern_001',
+    'qa': 'qa_001'
+  };
 
   const availableRoles: Role[] = [
     {
       id: 'manager',
       name: 'Team Manager',
-      description: 'Experienced team leader with strong communication skills',
-      difficulty: 'medium'
+      description: 'Lead team meetings, manage deadlines, juggle priorities. "Let\'s circle back on this!"',
+      difficulty: 'Medium'
     },
     {
-      id: 'developer',
-      name: 'Software Developer',
-      description: 'Technical team member with programming expertise',
-      difficulty: 'easy'
+      id: 'developer', 
+      name: 'Senior Developer',
+      description: 'Debug code, argue about architecture, explain tech stuff. "That\'s a code smell..."',
+      difficulty: 'Medium'
     },
     {
       id: 'client',
       name: 'Client Representative',
-      description: 'External stakeholder with specific requirements',
-      difficulty: 'hard'
+      description: 'Push for results, question costs, mention competitors. "When will it be done?"',
+      difficulty: 'Hard'
     },
     {
       id: 'hr',
-      name: 'HR Specialist',
-      description: 'Human resources professional handling workplace issues',
-      difficulty: 'medium'
+      name: 'HR Specialist', 
+      description: 'Navigate workplace politics, ensure compliance. "Let\'s take this offline..."',
+      difficulty: 'Medium'
+    },
+    {
+      id: 'intern',
+      name: 'Software Intern',
+      description: 'Ask questions, learn eagerly, bring fresh perspective. "Oh cool! 😅"',
+      difficulty: 'Easy'
+    },
+    {
+      id: 'qa',
+      name: 'QA Engineer',
+      description: 'Find bugs, think of edge cases, question everything. "Did we test for..."',
+      difficulty: 'Medium'
     }
   ];
 
   const handleRoleToggle = (roleId: string) => {
-    setSelectedRoles(prev => 
-      prev.includes(roleId) 
-        ? prev.filter(id => id !== roleId)
-        : [...prev, roleId]
-    );
+    // For now, only allow one role selection (single chat partner)
+    setSelectedRoles([roleId]);
+    
+    // Map role to agent and notify parent
+    const agentId = roleToAgentMap[roleId];
+    if (agentId) {
+      onAgentChange(agentId);
+    }
   };
 
   const getDifficultyColor = (difficulty: string) => {

@@ -1,60 +1,79 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, MessageCircle, Star, Briefcase } from 'lucide-react';
 
 interface Agent {
   id: string;
   name: string;
-  role: string;
-  personality: string;
-  background: string;
+  role?: string;
+  type?: string;
+  personality?: string;
+  background?: string;
   skills: string[];
-  experience: string;
-  rating: number;
+  experience?: string;
+  rating?: number;
 }
 
 const AgentsPage: React.FC = () => {
-  const agents: Agent[] = [
-    {
-      id: 'manager_001',
-      name: 'Sarah Johnson',
-      role: 'Team Manager',
-      personality: 'Professional, supportive, and results-oriented. Values clear communication and team collaboration.',
-      background: '10+ years of experience managing software development teams. MBA from Stanford.',
-      skills: ['Leadership', 'Project Management', 'Conflict Resolution', 'Strategic Planning'],
-      experience: '10+ years',
-      rating: 4.8
-    },
-    {
-      id: 'developer_001',
-      name: 'Alex Chen',
-      role: 'Senior Developer',
-      personality: 'Technical, detail-oriented, and passionate about clean code. Sometimes gets lost in technical details.',
-      background: '8 years of full-stack development experience. Computer Science degree from MIT.',
-      skills: ['Full-stack Development', 'System Architecture', 'Code Review', 'Technical Documentation'],
-      experience: '8 years',
-      rating: 4.6
-    },
-    {
-      id: 'client_001',
-      name: 'Michael Rodriguez',
-      role: 'Client Representative',
-      personality: 'Demanding, focused on ROI, and skeptical of new approaches. Values proven solutions.',
-      background: '15 years in business development. Previously worked at Fortune 500 companies.',
-      skills: ['Business Analysis', 'Stakeholder Management', 'Budget Planning', 'Risk Assessment'],
-      experience: '15 years',
-      rating: 4.7
-    },
-    {
-      id: 'hr_001',
-      name: 'Jennifer Williams',
-      role: 'HR Specialist',
-      personality: 'Empathetic, policy-focused, and concerned with employee well-being. Balances company and employee needs.',
-      background: '12 years in human resources. Certified HR professional with focus on employee relations.',
-      skills: ['Employee Relations', 'Policy Development', 'Conflict Mediation', 'Performance Management'],
-      experience: '12 years',
-      rating: 4.9
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  const fetchAgents = async () => {
+    try {
+      console.log('Fetching agents from API...');
+      const response = await fetch('http://localhost:8080/api/v1/agents');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Agents API response:', data);
+      
+      // Transform API data to match our interface
+      const transformedAgents = data.agents?.map((agent: any) => ({
+        id: agent.id || 'unknown',
+        name: agent.name || 'Unknown Agent',
+        role: agent.type || agent.role || 'Unknown Role',
+        type: agent.type,
+        personality: agent.personality || 'Professional and helpful',
+        background: agent.background || 'Experienced professional',
+        skills: Array.isArray(agent.skills) ? agent.skills : ['Communication', 'Problem Solving'],
+        experience: agent.experience || 'Multiple years',
+        rating: agent.rating || 4.5
+      })) || [];
+      
+      setAgents(transformedAgents);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching agents:', err);
+      setError('Failed to load agents from server. Please check if the backend is running.');
+      setAgents([]); // Don't use fallback data - force API usage
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-lg">Loading agents...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+        <p className="text-red-600">⚠️ {error}</p>
+        <p className="text-sm text-red-500 mt-1">Showing fallback data below.</p>
+      </div>
+    );
+  }
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -87,8 +106,8 @@ const AgentsPage: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xl font-semibold text-gray-900">{agent.name}</h3>
                   <div className="flex items-center space-x-1">
-                    {renderStars(agent.rating)}
-                    <span className="text-sm text-gray-600 ml-1">({agent.rating})</span>
+                    {renderStars(agent.rating || 0)}
+                    <span className="text-sm text-gray-600 ml-1">({agent.rating || 'N/A'})</span>
                   </div>
                 </div>
                 

@@ -21,7 +21,6 @@ echo "✅ Prerequisites check passed"
 
 # Backend setup
 echo "📦 Setting up backend..."
-cd backend
 
 # Create virtual environment
 if [ ! -d "venv" ]; then
@@ -39,8 +38,6 @@ pip install -r requirements.txt
 # Run tests
 echo "Running backend tests..."
 python -m pytest tests/ -v
-
-cd ..
 
 # Frontend setup
 echo "📦 Setting up frontend..."

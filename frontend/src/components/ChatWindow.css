@@ -1,0 +1,165 @@
+/* ChatWindow.css - Ultra-compact and smooth UI styles */
+
+.chat-messages {
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Typing indicator animation */
+.typing-indicator {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.typing-indicator span {
+  height: 6px;
+  width: 6px;
+  background-color: #94a3b8;
+  border-radius: 50%;
+  animation: typing 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+/* Ultra-compact message animations */
+.message-slide-in {
+  animation: slideInMessage 0.3s ease-out;
+}
+
+@keyframes slideInMessage {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dropdown animations */
+.dropdown-enter {
+  animation: dropdownEnter 0.2s ease-out;
+}
+
+@keyframes dropdownEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Compact button hover effects */
+.compact-button {
+  transition: all 0.2s ease;
+}
+
+.compact-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus ring improvements */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Ultra-compact participant badges */
+.participant-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.participant-badge:hover {
+  transform: scale(1.05);
+}
+
+/* Responsive message width */
+@media (max-width: 640px) {
+  .message-max-width {
+    max-width: 280px;
+  }
+}
+
+@media (min-width: 641px) {
+  .message-max-width {
+    max-width: 384px;
+  }
+}
+
+/* Compact header gradient */
+.header-gradient {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* Message bubble shadows */
+.message-bubble {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+}
+
+.message-bubble:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Ultra-compact spacing */
+.ultra-compact {
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+/* Optimized for minimal scrolling */
+.minimal-scroll {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
