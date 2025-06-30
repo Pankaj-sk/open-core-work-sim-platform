@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, MessageCircle, User, Users } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Message {
   id: string;
@@ -155,7 +156,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const callAPIForAgent = async (agentId: string, userInput: string, personality: UserPersonality) => {
     try {
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

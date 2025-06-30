@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Users, FileText, TrendingUp } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Scenario {
   id: string;
@@ -20,7 +21,7 @@ const HomePage: React.FC = () => {
 
   const fetchScenarios = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/v1/simulations/scenarios');
+      const response = await fetch(`${API_BASE_URL}/simulations/scenarios`);
       if (response.ok) {
         const data = await response.json();
         const scenariosData = data.scenarios || {};

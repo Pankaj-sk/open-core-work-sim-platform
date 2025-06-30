@@ -15,125 +15,273 @@ import type {
   ArtifactRequest,
 } from '../types/api';
 
-// Environment variable handling
-const getApiBaseUrl = (): string => {
-  // Check for React environment variable
-  if (typeof window !== 'undefined' && (window as any).__REACT_APP_API_URL__) {
-    return (window as any).__REACT_APP_API_URL__;
-  }
-  
-  // Try accessing environment variables through global object
-  try {
-    const globalThis = (function(this: any) { return this; })();
-    if (globalThis && (globalThis as any).process && (globalThis as any).process.env) {
-      const apiUrl = (globalThis as any).process.env.REACT_APP_API_URL;
-      if (apiUrl) return apiUrl;
-    }
-  } catch (error) {
-    console.log('Environment variables not accessible');
-  }
-  
-  // Default fallback
-  return 'http://localhost:8080/api/v1';
-};
+// Use environment variable for API base URL, fallback to localhost for dev
+export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-const API_BASE_URL = getApiBaseUrl();
-
-// HTTP client interface
-interface HttpClient {
-  get<T>(url: string): Promise<T>;
-  post<T>(url: string, data?: any): Promise<T>;
+interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data?: T;
 }
 
-// Fetch-based HTTP client implementation
-class FetchHttpClient implements HttpClient {
-  private baseURL: string;
+interface LoginRequest {
+  username: string;
+  password: string;
+}
 
-  constructor(baseURL: string) {
-    this.baseURL = baseURL;
+interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  current_phase: string;
+  team_size: number;
+  is_active: boolean;
+}
+
+interface ProjectDetails {
+  project: {
+    id: string;
+    name: string;
+    description: string;
+    created_at: string;
+    current_phase: string;
+    settings: any;
+  };
+  team_members: Array<{
+    id: number;
+    name: string;
+    role: string;
+    is_user: boolean;
+    experience_level: string;
+    reporting_to: string | null;
+  }>;
+  user_role: string;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  conversation_type: string;
+  status: string;
+  start_time: string;
+  end_time: string | null;
+  participant_count: number;
+  message_count: number;
+}
+
+interface Message {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  content: string;
+  timestamp: string;
+  message_type: string;
+}
+
+interface ConversationDetails {
+  conversation: {
+    id: string;
+    title: string;
+    conversation_type: string;
+    status: string;
+    start_time: string;
+    end_time: string | null;
+    summary: string | null;
+  };
+  messages: Message[];
+  participants: Array<{
+    id: string;
+    name: string;
+    joined_at: string;
+  }>;
+}
+
+class ApiService {
+  private getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('session_token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
   }
 
-  async get<T>(url: string): Promise<T> {
-    const response = await fetch(`${this.baseURL}${url}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config: RequestInit = {
+      headers: this.getAuthHeaders(),
+      ...options,
+    };
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    try {
+      const response = await fetch(url, config);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || 'Request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('API request failed:', error);
+      throw error;
     }
-
-    return response.json();
   }
 
-  async post<T>(url: string, data?: any): Promise<T> {
-    const response = await fetch(`${this.baseURL}${url}`, {
+  // Authentication methods
+  async login(username: string, password: string): Promise<ApiResponse> {
+    return this.makeRequest('/auth/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: data ? JSON.stringify(data) : undefined,
+      body: JSON.stringify({ username, password }),
     });
+  }
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+  async register(username: string, email: string, password: string, fullName: string): Promise<ApiResponse> {
+    return this.makeRequest('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password, full_name: fullName }),
+    });
+  }
 
-    return response.json();
+  async logout(token: string): Promise<ApiResponse> {
+    return this.makeRequest('/auth/logout', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  }
+
+  async validateSession(token: string): Promise<ApiResponse> {
+    return this.makeRequest('/auth/profile', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  }
+
+  // Project methods
+  async createProject(
+    name: string,
+    description: string,
+    userRole: string,
+    teamSize: number = 5,
+    projectType: string = 'web_development'
+  ): Promise<ApiResponse> {
+    return this.makeRequest('/projects', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        description,
+        user_role: userRole,
+        team_size: teamSize,
+        project_type: projectType,
+      }),
+    });
+  }
+
+  async getUserProjects(): Promise<ApiResponse<{ projects: Project[]; total_count: number }>> {
+    return this.makeRequest('/projects');
+  }
+
+  async getProjectDetails(projectId: string): Promise<ApiResponse<ProjectDetails>> {
+    return this.makeRequest(`/projects/${projectId}`);
+  }
+
+  // Conversation methods
+  async startConversation(
+    projectId: string,
+    conversationType: string,
+    title: string,
+    participants: string[]
+  ): Promise<ApiResponse> {
+    return this.makeRequest(`/projects/${projectId}/conversations/start`, {
+      method: 'POST',
+      body: JSON.stringify({
+        conversation_type: conversationType,
+        title,
+        participants,
+      }),
+    });
+  }
+
+  async sendMessage(
+    projectId: string,
+    conversationId: string,
+    message: string,
+    messageType: string = 'text'
+  ): Promise<ApiResponse> {
+    return this.makeRequest(`/projects/${projectId}/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        message_type: messageType,
+      }),
+    });
+  }
+
+  async endConversation(projectId: string, conversationId: string): Promise<ApiResponse> {
+    return this.makeRequest(`/projects/${projectId}/conversations/end`, {
+      method: 'POST',
+      body: JSON.stringify({ conversation_id: conversationId }),
+    });
+  }
+
+  async getProjectConversations(
+    projectId: string,
+    day?: string
+  ): Promise<ApiResponse<{ conversations: Conversation[]; total_count: number; date: string }>> {
+    const endpoint = day 
+      ? `/projects/${projectId}/conversations?day=${day}`
+      : `/projects/${projectId}/conversations`;
+    return this.makeRequest(endpoint);
+  }
+
+  async getConversationDetails(
+    projectId: string,
+    conversationId: string
+  ): Promise<ApiResponse<ConversationDetails>> {
+    return this.makeRequest(`/projects/${projectId}/conversations/${conversationId}`);
+  }
+
+  // Memory methods
+  async getProjectMemory(
+    projectId: string,
+    query?: string,
+    limit: number = 20
+  ): Promise<ApiResponse> {
+    const endpoint = query
+      ? `/projects/${projectId}/memory?query=${encodeURIComponent(query)}&limit=${limit}`
+      : `/projects/${projectId}/memory?limit=${limit}`;
+    return this.makeRequest(endpoint);
+  }
+
+  // Legacy methods for backward compatibility
+  async getAgents(): Promise<ApiResponse> {
+    return this.makeRequest('/agents');
+  }
+
+  async getAgent(agentId: string): Promise<ApiResponse> {
+    return this.makeRequest(`/agents/${agentId}`);
+  }
+
+  async chatWithAgent(agentId: string, message: string): Promise<ApiResponse> {
+    return this.makeRequest(`/agents/${agentId}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  async getScenarios(): Promise<ApiResponse> {
+    return this.makeRequest('/simulations/scenarios');
   }
 }
 
-// Create HTTP client instance
-const httpClient = new FetchHttpClient(API_BASE_URL);
-
-// Agent API calls
-export const agentsApi = {
-  getAgents: (): Promise<AgentsResponse> => 
-    httpClient.get('/agents'),
-  
-  getAgent: (agentId: string): Promise<AgentResponse> => 
-    httpClient.get(`/agents/${agentId}`),
-  
-  chatWithAgent: (agentId: string, message: string): Promise<ChatResponse> => 
-    httpClient.post(`/agents/${agentId}/chat`, { message }),
-  
-  getChatHistory: (agentId: string): Promise<ChatHistoryResponse> => 
-    httpClient.get(`/agents/${agentId}/history`),
-};
-
-// Simulation API calls
-export const simulationApi = {
-  getScenarios: (): Promise<ScenariosResponse> => 
-    httpClient.get('/simulations/scenarios'),
-  
-  startSimulation: (config: SimulationConfig): Promise<StartSimulationResponse> => 
-    httpClient.post('/simulations/start', config),
-  
-  getSimulation: (simulationId: string): Promise<SimulationResponse> => 
-    httpClient.get(`/simulations/${simulationId}`),
-  
-  endSimulation: (simulationId: string): Promise<EndSimulationResponse> => 
-    httpClient.post(`/simulations/${simulationId}/end`),
-};
-
-// Artifact API calls
-export const artifactApi = {
-  getTemplates: (): Promise<TemplatesResponse> => 
-    httpClient.get('/artifacts/templates'),
-  
-  generateArtifact: (request: ArtifactRequest): Promise<GenerateArtifactResponse> => 
-    httpClient.post('/artifacts/generate', request),
-  
-  getArtifact: (artifactId: string): Promise<ArtifactResponse> => 
-    httpClient.get(`/artifacts/${artifactId}`),
-};
-
-// Default export
-export default {
-  agentsApi,
-  simulationApi,
-  artifactApi,
-  baseURL: API_BASE_URL,
-};
+export const apiService = new ApiService();
+export default apiService;

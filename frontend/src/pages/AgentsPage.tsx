@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, MessageCircle, Star, Briefcase } from 'lucide-react';
+import { API_BASE_URL } from '../services/api';
 
 interface Agent {
   id: string;
@@ -25,7 +26,7 @@ const AgentsPage: React.FC = () => {
   const fetchAgents = async () => {
     try {
       console.log('Fetching agents from API...');
-      const response = await fetch('http://localhost:8080/api/v1/agents');
+      const response = await fetch(`${API_BASE_URL}/agents`);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
