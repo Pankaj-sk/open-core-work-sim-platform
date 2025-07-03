@@ -28,13 +28,19 @@ class Settings(BaseSettings):
     
     # OpenAI
     openai_api_key: Optional[str] = None
+    openai_api_key_2: Optional[str] = None
+    openai_api_key_3: Optional[str] = None
     
     # Google API
     google_api_key: Optional[str] = Field(None, alias="GOOGLE_API_KEY")
+    google_api_key_2: Optional[str] = None
+    google_api_key_3: Optional[str] = None
     gemini_model: str = Field("gemini-1.5-flash", alias="GEMINI_MODEL")
     
     # Anthropic Claude
     anthropic_api_key: Optional[str] = None
+    anthropic_api_key_2: Optional[str] = None
+    anthropic_api_key_3: Optional[str] = None
     claude_model: str = "claude-3-sonnet-20240229"
     
     # Azure OpenAI
@@ -63,6 +69,13 @@ class Settings(BaseSettings):
     
     # CORS - Remove wildcard for production security
     cors_origins: list = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]  # Removed "*" wildcard
+    
+    # Enhanced Memory Configuration
+    memory_cleanup_days: int = 7
+    memory_cache_size: int = 1000
+    memory_batch_size: int = 10
+    memory_summarization_threshold: int = 10
+    memory_max_context_tokens: int = 3000
     
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "allow", "populate_by_name": True}
 

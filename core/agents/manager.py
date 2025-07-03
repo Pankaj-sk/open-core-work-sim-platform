@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime
 from ..config import settings
 from ..persona_behavior import PersonaBehaviorManager
+from ..memory.enhanced_rag import EnhancedRAGManager
+import logging
 
 
 class AgentPersona(BaseModel):
@@ -21,6 +23,13 @@ class AgentManager:
         self.agents: Dict[str, AgentPersona] = self._initialize_agents()
         self.conversation_history: Dict[str, List[Dict]] = {}
         self.persona_behavior_manager = PersonaBehaviorManager()
+        
+        # Enhanced RAG memory system
+        self.enhanced_rag = EnhancedRAGManager()
+        
+        # Memory optimization settings
+        self.enable_context_optimization = True
+        self.max_context_tokens = 3000
     
     def _initialize_agents(self) -> Dict[str, AgentPersona]:
         """Initialize realistic workplace AI agents"""
@@ -255,16 +264,54 @@ Remember: You are a real person in this workplace, not an AI. Respond naturally 
         return base_prompt + behavioral_enhancement
     
     def _generate_agent_response(self, agent: AgentPersona, message: str) -> str:
-        """Generate a response using custom model API with conversation history"""
+        """Generate a response using custom model API with enhanced memory and rate limiting"""
         try:
-            # Get conversation history for context
-            conversation_context = self._build_conversation_context(agent.id)
+            # Wait for rate limit before making API call
+            if hasattr(self, 'enhanced_rag'):
+                self.enhanced_rag.wait_for_rate_limit()
             
-            # Build enhanced prompt with conversation history and personality
+            # Get conversation history for context
+            if hasattr(self, 'enhanced_rag') and self.enable_context_optimization:
+                # Use enhanced context generation
+                conversation_context = self.enhanced_rag.generate_enhanced_context(
+                    project_id="default",  # You can pass actual project_id here
+                    conversation_id=agent.id,
+                    query=message,
+                    agent_id=agent.id
+                )
+            else:
+                # Fallback to basic context
+                conversation_context = self._build_conversation_context(agent.id)
+            
+            # Build enhanced prompt with optimized context
             system_prompt = self._build_enhanced_system_prompt(agent, conversation_context)
             
             # Call your custom model API here
             response = self._call_custom_model(system_prompt, message)
+            
+            # Store message in enhanced RAG if available
+            if hasattr(self, 'enhanced_rag'):
+                try:
+                    # Store user message
+                    self.enhanced_rag.add_message(
+                        content=message,
+                        project_id="default",
+                        conversation_id=agent.id,
+                        sender="user",
+                        message_type="chat"
+                    )
+                    
+                    # Store agent response
+                    self.enhanced_rag.add_message(
+                        content=response,
+                        project_id="default",
+                        conversation_id=agent.id,
+                        sender=agent.name,
+                        agent_id=agent.id,
+                        message_type="response"
+                    )
+                except Exception as e:
+                    logging.warning(f"Failed to store in enhanced RAG: {e}")
             
             # Clean up response to remove artificial patterns
             response = self._clean_agent_response(agent, response)
