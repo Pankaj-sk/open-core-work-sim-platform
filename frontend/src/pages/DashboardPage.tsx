@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { Plus, Users, Calendar, TrendingUp, Briefcase, Settings } from 'lucide-react';
@@ -65,7 +65,6 @@ const PROJECT_ROLES: ProjectRole[] = [
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);

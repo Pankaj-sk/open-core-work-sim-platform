@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { 
@@ -13,7 +13,7 @@ import {
   Brain,
   History
 } from 'lucide-react';
-import { format, parseISO, differenceInCalendarDays } from 'date-fns';
+import { parseISO, differenceInCalendarDays } from 'date-fns';
 
 interface ProjectDetails {
   project: {
@@ -95,6 +95,10 @@ const ProjectPage: React.FC = () => {
   const [messageInput, setMessageInput] = useState('');
   const [sending, setSending] = useState(false);
   
+  // Dashboard States
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  
   // UI States
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [newConversationForm, setNewConversationForm] = useState({
@@ -104,21 +108,8 @@ const ProjectPage: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState<'conversations' | 'team' | 'memory'>('conversations');
 
-  useEffect(() => {
-    if (projectId) {
-      loadProject();
-      loadConversations();
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    if (location.state && (location.state as any).reload) {
-      loadConversations();
-    }
-    // eslint-disable-next-line
-  }, [location.state]);
-
-  const loadProject = async () => {
+  // Function definitions
+  const loadProject = useCallback(async () => {
     try {
       const response = await apiService.getProjectDetails(projectId!);
       if (response.success && response.data) {
@@ -132,19 +123,119 @@ const ProjectPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
+      // Debug logging removed
       const response = await apiService.getProjectConversations(projectId!);
-      if (response.success) {
-        setConversations(response.data?.conversations || []);
+      // Debug logging removed
+      
+      // Handle different response formats
+      let conversations = [];
+      if (response.success && response.data?.conversations) {
+        conversations = response.data.conversations;
+      } else if ((response as any).conversations) {
+        // Direct response format from backend
+        conversations = (response as any).conversations;
       }
+      
+      // Debug logging removed
+      setConversations(conversations);
     } catch (error) {
       console.error('Failed to load conversations:', error);
       setConversations([]);
     }
-  };
+  }, [projectId]);
+
+  const loadDashboardData = useCallback(async () => {
+    if (!projectId || !project) return;
+    
+    try {
+      setDashboardLoading(true);
+      // Debug logging removed
+      
+      // Load both dashboard content and role-specific tasks
+      const [dashboardResponse, tasksResponse] = await Promise.all([
+        apiService.getDashboardData(projectId),
+        apiService.getRoleTasks(projectId, project.user_role)
+      ]);
+      
+      // Debug logging removed
+      // Debug logging removed
+      
+      if (dashboardResponse.success && tasksResponse.success) {
+        setDashboardData({
+          dashboard: dashboardResponse.data,
+          tasks: tasksResponse.data
+        });
+      } else {
+        console.error('Failed to load dashboard data:', { dashboardResponse, tasksResponse });
+        // Set fallback message instead of hardcoded content
+        setDashboardData({
+          dashboard: {
+            tasks: [],
+            feedback: "Please configure AI API keys in .env file to get personalized dashboard content.",
+            suggestions: [],
+            deadlines: [],
+            responsibilities: []
+          },
+          tasks: []
+        });
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Set error message instead of hardcoded content
+      setDashboardData({
+        dashboard: {
+          tasks: [],
+          feedback: "Error loading dashboard content. Please check your API configuration.",
+          suggestions: ["Add GOOGLE_API_KEY to .env file for AI-powered insights"],
+          deadlines: [],
+          responsibilities: []
+        },
+        tasks: []
+      });
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, [projectId, project]);
+
+  useEffect(() => {
+    if (projectId) {
+      loadProject();
+      loadConversations();
+    }
+  }, [projectId, loadProject, loadConversations]);
+
+  // Load dashboard data after project is loaded
+  useEffect(() => {
+    if (project && projectId) {
+      loadDashboardData();
+    }
+  }, [project, projectId, loadDashboardData]);
+
+  useEffect(() => {
+    if (location.state && (location.state as any).reload) {
+      // Debug logging removed
+      // Force reload conversations with a slight delay to ensure backend processing is complete
+      setTimeout(() => {
+        loadConversations();
+      }, 500);
+      // Clear the reload state to prevent repeated reloads
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line
+  }, [location.state, loadConversations]);
+
+  // Auto-refresh conversations every 30 seconds to catch status updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadConversations();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [loadConversations]);
 
   const loadConversationDetails = async (conversationId: string) => {
     try {
@@ -245,7 +336,7 @@ const ProjectPage: React.FC = () => {
   };
 
   // Add debug log
-  console.log('Dashboard conversations:', conversations);
+  // Debug logging removed
 
   if (loading) {
     return (
@@ -371,12 +462,14 @@ const ProjectPage: React.FC = () => {
                                   <h4 className="font-medium text-gray-900">{conv.title}</h4>
                                   <p className="text-sm text-gray-500">{conv.conversation_type}</p>
                                 </div>
-                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${
                                   conv.status === 'active' 
                                     ? 'bg-green-100 text-green-800'
+                                    : conv.status === 'ended'
+                                    ? 'bg-blue-100 text-blue-800'
                                     : 'bg-gray-100 text-gray-800'
                                 }`}>
-                                  {conv.status}
+                                  {conv.status === 'active' ? 'Ongoing' : conv.status === 'ended' ? 'Finished' : conv.status}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
@@ -424,12 +517,88 @@ const ProjectPage: React.FC = () => {
                     <Brain size={16} />
                     <span>AI agents remember all conversations and interactions</span>
                   </div>
+                  
+                  {/* Memory Search */}
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600">
-                      The AI team members maintain persistent memory of all project activities, 
-                      conversations, and decisions. This enables realistic workplace dynamics 
-                      where agents remember previous interactions and build on past discussions.
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Search Project Memory
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Search conversations, decisions, or topics..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      />
+                    </div>
+                    <button className="btn-primary text-sm">
+                      Search Memories
+                    </button>
+                  </div>
+
+                  {/* Memory Statistics */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <p className="text-sm font-medium text-blue-900">Total Messages</p>
+                          <p className="text-lg font-bold text-blue-700">
+                            {conversations.reduce((sum, c) => sum + c.message_count, 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <History className="h-5 w-5 text-green-600" />
+                        <div>
+                          <p className="text-sm font-medium text-green-900">Conversations</p>
+                          <p className="text-lg font-bold text-green-700">{conversations.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Memories */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Recent Project Activity</h4>
+                    <div className="space-y-3">
+                      {conversations.slice(0, 3).map((conv) => (
+                        <div key={conv.id} className="flex items-start gap-3 p-2 bg-gray-50 rounded">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{conv.title}</p>
+                            <p className="text-xs text-gray-500">
+                              {conv.conversation_type} • {conv.message_count} messages • 
+                              {new Date(conv.start_time).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Memory Insights */}
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
+                    <h4 className="font-medium text-purple-900 mb-2">🧠 Memory Insights</h4>
+                    <p className="text-sm text-purple-700 mb-3">
+                      The AI team members maintain persistent memory using advanced vector embeddings 
+                      and semantic search to recall relevant context from past interactions.
                     </p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2 text-purple-600">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                        <span>Vector embeddings enable semantic memory search</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-purple-600">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                        <span>Conversation context is preserved across sessions</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-purple-600">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                        <span>Agents remember project decisions and team dynamics</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -528,11 +697,386 @@ const ProjectPage: React.FC = () => {
                 )}
               </>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <MessageSquare size={48} className="mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No conversation selected</h3>
-                  <p className="text-sm">Choose a conversation from the list or start a new one</p>
+              <div className="h-full overflow-y-auto p-6 bg-gray-50">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Header */}
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">My Workspace Dashboard</h2>
+                    <p className="text-gray-600">Stay on top of your tasks, assignments, and workplace activities</p>
+                  </div>
+
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <MessageSquare className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-600">Active Chats</p>
+                          <p className="text-xl font-semibold text-gray-900">{conversations.filter(c => c.status === 'active').length}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Users className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-600">Team Members</p>
+                          <p className="text-xl font-semibold text-gray-900">{project?.team_members?.length || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <History className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-600">Total Messages</p>
+                          <p className="text-xl font-semibold text-gray-900">{conversations.reduce((sum, c) => sum + c.message_count, 0)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-yellow-100 rounded-lg">
+                          <Calendar className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-600">Project Days</p>
+                          <p className="text-xl font-semibold text-gray-900">{Object.keys(groupConversationsByDay(conversations)).length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI-Generated Orders from Management */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">📋 Orders from Management</h3>
+                        {dashboardLoading ? (
+                          <div className="animate-pulse bg-gray-200 h-5 w-12 rounded"></div>
+                        ) : (
+                          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            AI Generated
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      {dashboardLoading ? (
+                        <div className="space-y-4">
+                          <div className="animate-pulse bg-gray-200 h-16 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-16 rounded"></div>
+                        </div>
+                      ) : dashboardData?.dashboard?.tasks?.length > 0 ? (
+                        <div className="space-y-4">
+                          {dashboardData.dashboard.tasks.slice(0, 3).map((task: any, index: number) => (
+                            <div key={index} className={`flex items-start space-x-3 p-4 rounded-lg border-l-4 ${
+                              task.priority === 'urgent' ? 'bg-red-50 border-red-400' :
+                              task.priority === 'high' ? 'bg-yellow-50 border-yellow-400' :
+                              'bg-blue-50 border-blue-400'
+                            }`}>
+                              <User className={`h-5 w-5 mt-0.5 ${
+                                task.priority === 'urgent' ? 'text-red-600' :
+                                task.priority === 'high' ? 'text-yellow-600' :
+                                'text-blue-600'
+                              }`} />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-sm font-medium text-gray-900">AI Manager</p>
+                                  <span className={`text-xs font-medium ${
+                                    task.priority === 'urgent' ? 'text-red-600' :
+                                    task.priority === 'high' ? 'text-yellow-600' :
+                                    'text-blue-600'
+                                  }`}>{task.priority?.toUpperCase()}</span>
+                                </div>
+                                <p className="text-sm text-gray-700 mt-1">{task.title}</p>
+                                <p className="text-xs text-gray-500 mt-2">AI Generated • Status: {task.status}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="text-gray-400 text-sm">
+                            {dashboardData?.dashboard?.feedback || "Configure AI API keys to get personalized management orders"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI-Generated My Responsibilities */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">📋 My Responsibilities</h3>
+                    </div>
+                    <div className="p-6">
+                      {dashboardLoading ? (
+                        <div className="space-y-3">
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                        </div>
+                      ) : dashboardData?.tasks?.length > 0 ? (
+                        <div className="space-y-3">
+                          {dashboardData.tasks.slice(0, 4).map((task: any, index: number) => (
+                            <div key={index} className="flex items-start justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
+                              <div className="flex items-start space-x-3">
+                                <div className={`h-4 w-4 mt-1 ${
+                                  task.priority === 'high' ? 'text-red-600' :
+                                  task.priority === 'medium' ? 'text-yellow-600' :
+                                  'text-green-600'
+                                }`}>
+                                  {task.title?.includes('review') || task.title?.includes('feedback') ? 
+                                    <MessageSquare className="h-4 w-4" /> :
+                                  task.title?.includes('team') || task.title?.includes('collaborate') ?
+                                    <Users className="h-4 w-4" /> :
+                                  task.title?.includes('meeting') || task.title?.includes('demo') ?
+                                    <Calendar className="h-4 w-4" /> :
+                                    <Brain className="h-4 w-4" />
+                                  }
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{task.title}</p>
+                                  <p className="text-xs text-gray-500">{task.description || task.estimated_time} • Role: {task.role}</p>
+                                </div>
+                              </div>
+                              <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                task.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="text-gray-400 text-sm">
+                            {dashboardData?.dashboard?.responsibilities?.length > 0 ? 
+                              dashboardData.dashboard.responsibilities.join(', ') :
+                              "Configure AI API keys to get personalized responsibilities"
+                            }
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI-Generated Team Assignments */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">👥 Team Assignments</h3>
+                    </div>
+                    <div className="p-6">
+                      {dashboardLoading ? (
+                        <div className="space-y-4">
+                          <div className="animate-pulse bg-gray-200 h-20 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-20 rounded"></div>
+                        </div>
+                      ) : dashboardData?.dashboard?.suggestions?.length > 0 ? (
+                        <div className="space-y-4">
+                          {dashboardData.dashboard.suggestions.map((suggestion: string, index: number) => (
+                            <div key={index} className="flex items-start space-x-3 p-4 bg-blue-50 rounded-lg">
+                              <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">AI Suggestion #{index + 1}</p>
+                                <p className="text-sm text-gray-700 mt-1">{suggestion}</p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-xs text-gray-500">Generated by AI • Team Assignment</p>
+                                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">AI Generated</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="text-gray-400 text-sm">
+                            Configure AI API keys to get team assignment suggestions
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI-Generated Upcoming Deadlines */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">⏰ Upcoming Deadlines</h3>
+                    </div>
+                    <div className="p-6">
+                      {dashboardLoading ? (
+                        <div className="space-y-3">
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                          <div className="animate-pulse bg-gray-200 h-12 rounded"></div>
+                        </div>
+                      ) : dashboardData?.dashboard?.deadlines?.length > 0 ? (
+                        <div className="space-y-3">
+                          {dashboardData.dashboard.deadlines.map((deadline: any, index: number) => (
+                            <div key={index} className={`flex items-center justify-between p-3 rounded-lg ${
+                              index === 0 ? 'bg-red-50' : index === 1 ? 'bg-yellow-50' : 'bg-blue-50'
+                            }`}>
+                              <div className="flex items-center space-x-3">
+                                <Clock className={`h-4 w-4 ${
+                                  index === 0 ? 'text-red-600' : index === 1 ? 'text-yellow-600' : 'text-blue-600'
+                                }`} />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{deadline.title}</p>
+                                  <p className={`text-xs ${
+                                    index === 0 ? 'text-red-600' : index === 1 ? 'text-yellow-600' : 'text-blue-600'
+                                  }`}>Due: {deadline.date}</p>
+                                </div>
+                              </div>
+                              <span className={`text-xs font-medium ${
+                                index === 0 ? 'text-red-600' : index === 1 ? 'text-yellow-600' : 'text-blue-600'
+                              }`}>
+                                {index === 0 ? 'URGENT' : index === 1 ? 'THIS WEEK' : 'UPCOMING'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <div className="text-gray-400 text-sm">
+                            Configure AI API keys to get personalized deadline tracking
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Conversation-Based Quick Actions */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">� Quick Conversation Actions</h3>
+                    </div>
+                    <div className="p-6">
+                      {/* Main Actions Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <button 
+                          onClick={() => setShowNewConversation(true)}
+                          className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors group"
+                        >
+                          <Plus className="h-6 w-6 text-gray-400 group-hover:text-blue-600 mb-2" />
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-blue-900">Start New Chat</p>
+                          <p className="text-xs text-gray-500 text-center">Begin team discussion</p>
+                        </button>
+                        
+                        <button 
+                          onClick={() => setShowNewConversation(true)}
+                          className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-colors group"
+                        >
+                          <Users className="h-6 w-6 text-gray-400 group-hover:text-green-600 mb-2" />
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-green-900">Ask for Help</p>
+                          <p className="text-xs text-gray-500 text-center">Get team assistance</p>
+                        </button>
+                        
+                        <button 
+                          onClick={() => setShowNewConversation(true)}
+                          className="flex flex-col items-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors group"
+                        >
+                          <MessageSquare className="h-6 w-6 text-gray-400 group-hover:text-purple-600 mb-2" />
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-purple-900">Status Update</p>
+                          <p className="text-xs text-gray-500 text-center">Share progress</p>
+                        </button>
+                      </div>
+
+                      {/* AI-Generated Conversation Suggestions */}
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2">💡 AI Conversation Suggestions</h4>
+                        <div className="space-y-2">
+                          {dashboardLoading ? (
+                            <div className="space-y-2">
+                              <div className="animate-pulse bg-gray-200 h-6 rounded"></div>
+                              <div className="animate-pulse bg-gray-200 h-6 rounded"></div>
+                              <div className="animate-pulse bg-gray-200 h-6 rounded"></div>
+                            </div>
+                          ) : dashboardData?.dashboard?.suggestions?.length > 0 ? (
+                            dashboardData.dashboard.suggestions.slice(0, 3).map((suggestion: string, index: number) => (
+                              <div key={index} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-700">🤖 {suggestion}</span>
+                                <button 
+                                  onClick={() => setShowNewConversation(true)}
+                                  className="text-blue-600 hover:text-blue-800 font-medium"
+                                >
+                                  Start
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-sm text-gray-500 text-center py-2">
+                              Configure AI API keys to get conversation suggestions
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conversation Insights */}
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="p-6 border-b border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900">� Team Communication</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Active Conversations */}
+                        <div className="text-center">
+                          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-3">
+                            <MessageSquare className="h-6 w-6 text-blue-600" />
+                          </div>
+                          <h4 className="text-sm font-semibold text-gray-900 mb-1">Active Chats</h4>
+                          <p className="text-2xl font-bold text-blue-600 mb-1">{conversations.filter(c => c.status === 'active').length}</p>
+                          <p className="text-xs text-gray-500">Ongoing discussions</p>
+                        </div>
+                        
+                        {/* Messages Today */}
+                        <div className="text-center">
+                          <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
+                            <History className="h-6 w-6 text-green-600" />
+                          </div>
+                          <h4 className="text-sm font-semibold text-gray-900 mb-1">Total Messages</h4>
+                          <p className="text-2xl font-bold text-green-600 mb-1">{conversations.reduce((sum, c) => sum + c.message_count, 0)}</p>
+                          <p className="text-xs text-gray-500">In all conversations</p>
+                        </div>
+                        
+                        {/* Team Members Available */}
+                        <div className="text-center">
+                          <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-3">
+                            <Users className="h-6 w-6 text-purple-600" />
+                          </div>
+                          <h4 className="text-sm font-semibold text-gray-900 mb-1">Team Members</h4>
+                          <p className="text-2xl font-bold text-purple-600 mb-1">{project?.team_members?.length || 0}</p>
+                          <p className="text-xs text-gray-500">Available to chat</p>
+                        </div>
+                      </div>
+                      
+                      {/* Communication Tips */}
+                      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">💡 Communication Tip</span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Start conversations with specific team members to get help with tasks, 
+                          share updates, or discuss project details. Each team member has their own expertise!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Helpful tip */}
+                  <div className="text-center text-gray-500 text-sm mt-8">
+                    💡 <strong>Tip:</strong> Select a conversation from the left panel to start chatting with your team members
+                  </div>
                 </div>
               </div>
             )}
@@ -626,4 +1170,4 @@ const ProjectPage: React.FC = () => {
   );
 };
 
-export default ProjectPage; 
+export default ProjectPage;

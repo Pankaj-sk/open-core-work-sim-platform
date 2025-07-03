@@ -1,0 +1,29 @@
+{
+  "total_tests": 3,
+  "passed_tests": 1,
+  "success_rate": 33.33333333333333,
+  "results": {
+    "High Volume Conversations": false,
+    "Complex Memory Queries": false,
+    "Memory Efficiency Over Time": true
+  },
+  "test_results": {
+    "Project Creation": {
+      "passed": true,
+      "details": "Project ID: ae128969-54ae-499e-b812-1e851c6a1d3a"
+    },
+    "High Volume Conversations": {
+      "passed": false,
+      "details": "250/250 conversations, 100.0% success rate"
+    },
+    "Complex Memory Queries": {
+      "passed": false,
+      "details": "Average complexity score: 0.20"
+    },
+    "Memory Efficiency Over Time": {
+      "passed": true,
+      "details": "Avg: 7.42s, Ratio: 1.21"
+    }
+  },
+  "conversation_count": 250
+}

@@ -5,9 +5,13 @@ import secrets
 import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from passlib.context import CryptContext
 
 from .models import User, UserSession, LoginRequest, RegisterRequest, LoginResponse, UserProfile, AuthResponse
 from ..models import User as DBUser, UserSession as DBUserSession
+
+# Initialize password hashing context with bcrypt
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthManager:
@@ -17,12 +21,12 @@ class AuthManager:
         self.db = db
     
     def _hash_password(self, password: str) -> str:
-        """Hash password using SHA-256 (use bcrypt in production)"""
-        return hashlib.sha256(password.encode()).hexdigest()
+        """Hash password using bcrypt"""
+        return pwd_context.hash(password)
     
     def _verify_password(self, password: str, hashed: str) -> bool:
-        """Verify password against hash"""
-        return self._hash_password(password) == hashed
+        """Verify password against bcrypt hash"""
+        return pwd_context.verify(password, hashed)
     
     def register_user(self, request: RegisterRequest) -> AuthResponse:
         """Register a new user"""

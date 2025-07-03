@@ -29,17 +29,22 @@ class RAGManager:
         # FAISS index for vector similarity search
         self.index = faiss.IndexFlatIP(self.embedding_dim)  # Inner product for cosine similarity
         
-        # Memory storage
+        # Memory storage - optimized with batch operations
         self.memory_chunks: Dict[str, MemoryChunk] = {}
         self.project_memories: Dict[str, List[str]] = {}  # project_id -> list of memory_chunk_ids
         self.agent_memories: Dict[str, List[str]] = {}   # agent_id -> list of memory_chunk_ids
         
-        # Metadata indexes
+        # Metadata indexes - optimized for fast lookup
         self.conversation_memories: Dict[str, List[str]] = {}  # conversation_id -> memory_chunk_ids
         self.user_memories: Dict[str, List[str]] = {}  # user_id -> memory_chunk_ids
         
-        # For testing mode: simple in-memory list
+        # For testing mode: simple in-memory list with size limits
         self._test_memory: Dict[str, list] = {}  # project_id -> list of dicts
+        self._max_memory_per_project = 1000  # Limit memory size
+        
+        # Batch processing for efficiency
+        self._pending_embeddings = []
+        self._batch_size = 10
     
     def add_memory(self, 
                    content: str, 

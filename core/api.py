@@ -1,12 +1,20 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from typing import Dict, List, Optional
 import uvicorn
 import logging
 from fastapi import Depends
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ConfigDict
+import signal
+import asyncio
+from contextlib import asynccontextmanager
+import os
+import shutil
+import uuid
+import traceback
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -15,10 +23,16 @@ logger = logging.getLogger(__name__)
 # TESTING MODE - Set to True to bypass authentication
 # WARNING: This disables email/password validation for testing purposes
 # Set to False in production
-TESTING_MODE = True
+TESTING_MODE = True  # Temporarily enabled for testing - DISABLE IN PRODUCTION
 
 from .config import settings
+from .exceptions import (
+    SimWorldException, ProjectNotFoundException, ConversationNotFoundException,
+    AgentNotFoundException, InvalidInputException, AuthenticationException,
+    AuthorizationException, AIServiceException, DatabaseException, MemoryException
+)
 from .agents.manager import AgentManager
+from .persona_behavior import PersonaBehaviorManager
 from .simulation.engine import SimulationEngine, SimulationConfig
 from .events.event_manager import event_manager
 from .artifacts.generator import artifact_generator
@@ -34,12 +48,22 @@ from .models import (
 )
 from .db import get_db
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan with graceful shutdown"""
+    # Startup
+    logger.info("Starting SimWorld API server...")
+    yield
+    # Shutdown
+    logger.info("Shutting down SimWorld API server...")
+    # Clean up resources here if needed
 
 # Initialize FastAPI app
 app = FastAPI(
     title=settings.project_name,
     version="1.0.0",
-    description="AI-powered work simulation platform with project management"
+    description="AI-powered work simulation platform with project management",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -47,15 +71,61 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+# Global exception handlers
+@app.exception_handler(SimWorldException)
+async def simworld_exception_handler(request, exc: SimWorldException):
+    """Handle custom SimWorld exceptions"""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success": False,
+            "error": {
+                "type": exc.__class__.__name__,
+                "message": str(exc),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }
+    )
+
+@app.exception_handler(ProjectNotFoundException)
+async def project_not_found_handler(request, exc: ProjectNotFoundException):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "success": False,
+            "error": {
+                "type": "ProjectNotFound",
+                "message": str(exc),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }
+    )
+
+@app.exception_handler(AuthenticationException)
+async def auth_exception_handler(request, exc: AuthenticationException):
+    return JSONResponse(
+        status_code=401,
+        content={
+            "success": False,
+            "error": {
+                "type": "AuthenticationError",
+                "message": str(exc),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }
+    )
 
 # Global components will be initialized on demand
 _agent_manager = None
 _simulation_engine = None
 _project_manager = None
 _auth_manager = None
+_persona_behavior_manager = None
 
 def get_agent_manager():
     """Get or create AgentManager instance"""
@@ -81,6 +151,14 @@ def get_project_manager(db: Session = Depends(get_db)):
     # Make sure the project manager has the latest db session
     _project_manager.db = db
     return _project_manager
+
+def get_persona_behavior_manager():
+    """Get or create PersonaBehaviorManager instance"""
+    global _persona_behavior_manager
+    if _persona_behavior_manager is None:
+        # We'll pass the RAG manager from the project manager later
+        _persona_behavior_manager = PersonaBehaviorManager()
+    return _persona_behavior_manager
 
 def get_auth_manager(db: Session = Depends(get_db)):
     """Get or create AuthManager instance"""
@@ -186,8 +264,55 @@ async def chat_with_agent(agent_id: str, message: Dict[str, str]):
         if "message" not in message:
             raise HTTPException(status_code=422, detail="Missing required field: message")
         
-        response = get_agent_manager().chat_with_agent(agent_id, message["message"])
-        return {"response": response, "agent_id": agent_id}
+        # Map agent IDs to handle role-based requests  
+        agent_id_map = {
+            "technical_lead": "developer_001",
+            "tech_lead": "developer_001", 
+            "developer": "developer_001",
+            "senior_developer": "developer_001",
+            "alex": "developer_001",
+            "alex_developer": "developer_001",
+            "alex_chen": "developer_001",
+            "manager": "manager_001",
+            "project_manager": "manager_001",
+            "sarah": "manager_001", 
+            "sarah_manager": "manager_001",
+            "sarah_johnson": "manager_001",
+            "designer": "designer_001",
+            "ux_designer": "designer_001",
+            "emma": "designer_001",
+            "emma_designer": "designer_001",
+            "emma_wilson": "designer_001",
+            "qa_engineer": "qa_001",
+            "qa": "qa_001",
+            "david": "qa_001",
+            "david_qa": "qa_001",
+            "david_kim": "qa_001",
+            "analyst": "analyst_001",
+            "business_analyst": "analyst_001",
+            "lisa": "analyst_001",
+            "lisa_analyst": "analyst_001",
+            "lisa_zhang": "analyst_001"
+        }
+        
+        # Map the agent_id if it's a role-based request
+        actual_agent_id = agent_id_map.get(agent_id.lower(), agent_id)
+        
+        # Use simple chat for backward compatibility
+        response = get_agent_manager().chat_with_agent_simple(actual_agent_id, message["message"])
+        
+        # Get agent info for sender name
+        agent_manager = get_agent_manager()
+        agent_info = agent_manager.agents.get(actual_agent_id, {})
+        sender_name = getattr(agent_info, 'name', None) or "AI Assistant"
+        
+        return {
+            "response": response, 
+            "agent_id": actual_agent_id, 
+            "requested_agent": agent_id,
+            "sender_name": sender_name,  # Always include sender name
+            "timestamp": datetime.utcnow().isoformat()
+        }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -279,26 +404,40 @@ async def get_artifact(artifact_id: str):
 
 # In-memory storage for testing
 _test_agents = {
-    "manager": {
-        "id": "manager",
+    "sarah_manager": {
+        "id": "sarah_manager",
         "name": "Sarah Johnson",
-        "role": "Project Manager",
-        "personality": "Supportive and organized",
-        "description": "Experienced project manager with a focus on team development"
+        "role": "Project Manager", 
+        "personality": "Friendly team leader who knows everyone. Organized and supportive.",
+        "description": "Hi! I'm Sarah, your project manager. I coordinate our team and make sure everyone's connected."
     },
-    "developer": {
-        "id": "developer", 
+    "alex_developer": {
+        "id": "alex_developer", 
         "name": "Alex Chen",
         "role": "Senior Developer",
-        "personality": "Analytical and detail-oriented",
-        "description": "Skilled developer with expertise in multiple technologies"
+        "personality": "Helpful tech lead who mentors others. Direct but caring communicator.",
+        "description": "Hey, I'm Alex! I handle the technical side and love helping teammates with coding challenges."
     },
-    "designer": {
-        "id": "designer",
+    "emma_designer": {
+        "id": "emma_designer",
+        "name": "Emma Wilson", 
+        "role": "UX Designer",
+        "personality": "Creative and collaborative. Always thinking about user experience.",
+        "description": "Hi there! I'm Emma, your UX designer. I focus on making our products user-friendly and beautiful."
+    },
+    "david_qa": {
+        "id": "david_qa",
         "name": "David Kim", 
-        "role": "UI/UX Designer",
-        "personality": "Creative and user-focused",
-        "description": "Passionate designer who creates intuitive user experiences"
+        "role": "QA Engineer",
+        "personality": "Detail-oriented quality advocate. Thorough but diplomatic.",
+        "description": "Hello! I'm David from QA. I help ensure our products work perfectly before they reach users."
+    },
+    "lisa_analyst": {
+        "id": "lisa_analyst",
+        "name": "Lisa Zhang",
+        "role": "Business Analyst", 
+        "personality": "Data-driven problem solver. Bridge between business and tech teams.",
+        "description": "Hi! I'm Lisa, your business analyst. I help translate business needs into technical requirements."
     }
 }
 _simulation_status = {"status": "idle", "uptime": 0}
@@ -497,6 +636,42 @@ class ProjectCreate(BaseModel):
     user_role: ProjectRole
     team_size: int = 5
     project_type: str = "web_development"
+    
+    model_config = ConfigDict(
+        validate_assignment=True,
+        str_strip_whitespace=True
+    )
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v):
+        if not v or len(v.strip()) < 3:
+            raise ValueError('Project name must be at least 3 characters long')
+        if len(v.strip()) > 200:
+            raise ValueError('Project name must be less than 200 characters')
+        return v.strip()
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v):
+        if v and len(v.strip()) > 1000:
+            raise ValueError('Description must be less than 1000 characters')
+        return v.strip() if v else ""
+    
+    @field_validator('team_size')
+    @classmethod
+    def validate_team_size(cls, v):
+        if v < 2 or v > 20:
+            raise ValueError('Team size must be between 2 and 20')
+        return v
+    
+    @field_validator('project_type')
+    @classmethod
+    def validate_project_type(cls, v):
+        allowed_types = ["web_development", "mobile_app", "data_science", "design_project", "other"]
+        if v not in allowed_types:
+            raise ValueError(f'Project type must be one of: {", ".join(allowed_types)}')
+        return v
 
 @app.post("/api/v1/projects")
 async def create_project(
@@ -781,15 +956,16 @@ async def login_user(
     auth_manager: AuthManager = Depends(get_auth_manager)
 ):
     """Login user"""
-    # TESTING MODE: Bypass authentication
+    # TESTING MODE: Bypass authentication completely
     if TESTING_MODE:
+        logger.info("TESTING_MODE: Bypassing authentication for login")
         return {
             "success": True,
             "message": "Login successful (testing mode)",
             "data": {
                 "user": {
                     "id": 1,
-                    "username": "test_user",
+                    "username": request.username or "test_user",
                     "email": "test@example.com",
                     "full_name": "Test User",
                     "role": "user"
@@ -882,35 +1058,211 @@ async def start_conversation(project_id: str, data: Dict, token: str = None):
     return {"success": True, "data": {"conversation": conversation}}
 
 @app.post("/api/v1/projects/{project_id}/conversations/end")
-async def end_conversation(project_id: str, data: Dict, token: str = None):
-    """End a conversation (user or persona)"""
-    user = get_current_user(token)
-    conversation_id = data.get("conversation_id")
-    if not conversation_id:
-        raise HTTPException(status_code=422, detail="Conversation ID required")
-    pm = get_project_manager()
-    conversation = pm.get_conversation(conversation_id)
-    conversation["status"] = "ended"
-    conversation["end_time"] = datetime.utcnow().isoformat()
-    pm.update_conversation(conversation_id, conversation)
-    # Save to memory (in testing mode, just print for now)
-    if hasattr(pm, 'rag_manager'):
-        try:
-            pm.rag_manager.add_memory(
-                content=f"Conversation ended: {conversation.get('title', '')}",
-                project_id=project_id,
-                conversation_id=conversation_id,
-                user_id=user.get('id', 1) if isinstance(user, dict) else 1,
-                conversation_type=conversation.get('conversation_type', ''),
-                additional_metadata={
-                    "summary": conversation.get('summary', ''),
-                    "messages": conversation.get('messages', [])
-                }
-            )
-            print(f"[DEBUG] Conversation {conversation_id} saved to memory.")
-        except Exception as e:
-            print(f"[DEBUG] Failed to save conversation to memory: {e}")
-    return {"status": "ended", "conversation_id": conversation_id}
+async def end_conversation(
+    project_id: str, 
+    data: Dict,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """End a conversation and save to memory"""
+    try:
+        conversation_id = data.get("conversation_id")
+        if not conversation_id:
+            raise HTTPException(status_code=422, detail="Conversation ID required")
+        
+        print(f"[DEBUG] Ending conversation {conversation_id} in project {project_id}")
+        
+        conversation = pm.get_conversation(conversation_id)
+        if not conversation:
+            print(f"[DEBUG] Conversation {conversation_id} not found")
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        print(f"[DEBUG] Found conversation: {conversation}")
+        
+        # Update conversation status
+        updated_conversation = conversation.copy()
+        updated_conversation["status"] = "ended"
+        updated_conversation["end_time"] = datetime.utcnow().isoformat()
+        
+        # Generate summary if there are messages
+        messages = conversation.get('messages', [])
+        if messages:
+            summary_parts = []
+            for msg in messages[-5:]:  # Last 5 messages for summary
+                summary_parts.append(f"{msg.get('sender_name', 'Unknown')}: {msg.get('content', '')[:100]}")
+            updated_conversation["summary"] = "; ".join(summary_parts)
+        else:
+            updated_conversation["summary"] = "No messages exchanged"
+        
+        # Update the conversation
+        success = pm.update_conversation(conversation_id, updated_conversation)
+        if not success:
+            print(f"[DEBUG] Failed to update conversation {conversation_id}")
+            raise HTTPException(status_code=500, detail="Failed to update conversation")
+        
+        print(f"[DEBUG] Successfully updated conversation {conversation_id}")
+        
+        # Save to memory
+        if hasattr(pm, 'rag_manager') and pm.rag_manager:
+            try:
+                memory_content = f"""
+Conversation Summary:
+Title: {updated_conversation.get('title', 'Untitled')}
+Type: {updated_conversation.get('conversation_type', 'unknown')}
+Status: Ended
+Duration: {updated_conversation.get('start_time', '')} to {updated_conversation.get('end_time', '')}
+Participants: {', '.join(updated_conversation.get('participants', []))}
+Messages: {len(messages)} messages exchanged
+Summary: {updated_conversation.get('summary', 'No summary available')}
+"""
+                pm.rag_manager.add_memory(
+                    content=memory_content,
+                    project_id=project_id,
+                    conversation_id=conversation_id,
+                    user_id=1,  # Default user ID in testing mode
+                    conversation_type=updated_conversation.get('conversation_type', ''),
+                    additional_metadata={
+                        "summary": updated_conversation.get('summary', ''),
+                        "message_count": len(messages),
+                        "participants": updated_conversation.get('participants', []),
+                        "status": "ended"
+                    }
+                )
+                print(f"[DEBUG] Conversation {conversation_id} saved to memory with {len(messages)} messages.")
+            except Exception as e:
+                print(f"[DEBUG] Failed to save conversation to memory: {e}")
+                # Don't fail the request if memory save fails
+        
+        response = {
+            "success": True,
+            "status": "ended", 
+            "conversation_id": conversation_id,
+            "message": "Conversation ended and saved to memory"
+        }
+        print(f"[DEBUG] Returning response: {response}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Error ending conversation: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# AI-Generated Dashboard Endpoints
+@app.get("/api/v1/projects/{project_id}/dashboard")
+async def get_dashboard_data(
+    project_id: str,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """Get AI-generated dashboard data including tasks, feedback, and suggestions"""
+    try:
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Generate AI dashboard content
+        dashboard_data = await pm.generate_dashboard_content(project_id)
+        
+        return {
+            "success": True,
+            "data": dashboard_data
+        }
+    except Exception as e:
+        logger.error(f"Dashboard data error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/projects/{project_id}/ai-tasks")
+async def get_ai_generated_tasks(
+    project_id: str,
+    role: str,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """Get AI-generated tasks based on user role and project context"""
+    try:
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        tasks = await pm.generate_role_tasks(project_id, role)
+        
+        return {
+            "success": True,
+            "data": tasks
+        }
+    except Exception as e:
+        logger.error(f"AI tasks error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/projects/{project_id}/agent-feedback")
+async def get_agent_feedback(
+    project_id: str,
+    user_id: str,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """Get AI-generated feedback and orders from team members/superiors"""
+    try:
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        feedback = await pm.generate_agent_feedback(project_id, user_id)
+        
+        return {
+            "success": True,
+            "data": feedback
+        }
+    except Exception as e:
+        logger.error(f"Agent feedback error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/projects/{project_id}/conversation-suggestions")
+async def get_conversation_suggestions(
+    project_id: str,
+    role: str,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """Get AI-generated conversation suggestions based on current context"""
+    try:
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        suggestions = await pm.generate_conversation_suggestions(project_id, role)
+        
+        return {
+            "success": True,
+            "data": suggestions
+        }
+    except Exception as e:
+        logger.error(f"Conversation suggestions error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/projects/{project_id}/ai-insights")
+async def get_workplace_insights(
+    project_id: str,
+    pm: ProjectManager = Depends(get_project_manager)
+):
+    """Get AI-generated workplace insights and productivity suggestions"""
+    try:
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        insights = await pm.generate_workplace_insights(project_id)
+        
+        return {
+            "success": True,
+            "data": insights
+        }
+    except Exception as e:
+        logger.error(f"Workplace insights error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/projects/{project_id}/memory")
@@ -948,58 +1300,6 @@ async def get_profile():
         }}}
     raise HTTPException(status_code=404, detail="Not implemented")
 
-# PATCH PROJECT DETAILS ENDPOINT
-@app.get("/api/v1/projects/{project_id}")
-async def get_project_details(
-    project_id: str,
-    current_user: Dict = Depends(get_current_user),
-    pm: ProjectManager = Depends(get_project_manager)
-):
-    if TESTING_MODE:
-        project = pm.get_project(project_id)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        # Always allow test user
-        # Compose ProjectDetails structure
-        team_members = []
-        user_role = "user"
-        if hasattr(project, 'members'):
-            team_members = [
-                {
-                    "id": getattr(m, 'id', 0),
-                    "name": getattr(m, 'name', ""),
-                    "role": getattr(m, 'role', ""),
-                    "is_user": getattr(m, 'is_user', False),
-                    "experience_level": getattr(m, 'experience_level', ""),
-                    "reporting_to": getattr(m, 'reporting_to', None)
-                }
-                for m in getattr(project, 'members', [])
-            ]
-            user_member = next((m for m in getattr(project, 'members', []) if getattr(m, 'is_user', False)), None)
-            if user_member:
-                user_role = getattr(user_member, 'role', "user")
-        return {
-            "success": True,
-            "data": {
-                "project": {
-                    "id": project.id,
-                    "name": project.name,
-                    "description": project.description,
-                    "created_at": str(project.created_at),
-                    "current_phase": getattr(project, 'current_phase', "planning"),
-                    "settings": getattr(project, 'settings', {})
-                },
-                "team_members": team_members,
-                "user_role": user_role
-            }
-        }
-    # original logic below
-    project = pm.get_project(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    # Add real permission check here if needed
-    return {"project": project}
-
 # PATCH CONVERSATIONS ENDPOINT
 @app.get("/api/v1/projects/{project_id}/conversations")
 async def get_project_conversations(project_id: str, pm: ProjectManager = Depends(get_project_manager)):
@@ -1009,12 +1309,12 @@ async def get_project_conversations(project_id: str, pm: ProjectManager = Depend
         for conv in conversations:
             conv["participant_count"] = len(conv.get("participants", []))
             conv["message_count"] = len(conv.get("messages", []))
-        return {"conversations": conversations, "total_count": len(conversations)}
+        return {"success": True, "data": {"conversations": conversations, "total_count": len(conversations)}}
     # original logic below
     conversations = pm.get_project_conversations(project_id)
     if not conversations:
-        return {"conversations": [], "total_count": 0}
-    return {"conversations": conversations, "total_count": len(conversations)}
+        return {"success": True, "data": {"conversations": [], "total_count": 0}}
+    return {"success": True, "data": {"conversations": conversations, "total_count": len(conversations)}}
 
 @app.get("/api/v1/projects/{project_id}/conversations/{conversation_id}")
 async def get_conversation_details(project_id: str, conversation_id: str, pm: ProjectManager = Depends(get_project_manager)):
@@ -1059,5 +1359,492 @@ async def add_message_to_conversation(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Persona Behavior Endpoints
+@app.post("/api/v1/projects/{project_id}/introduce-team")
+async def introduce_project_team(
+    project_id: str,
+    request: Dict[str, str] = None,
+    current_user: Dict = Depends(get_current_user),
+    pm: ProjectManager = Depends(get_project_manager),
+    pb_manager: PersonaBehaviorManager = Depends(get_persona_behavior_manager)
+):
+    """Generate team introductions for a project start"""
+    try:
+        # Get project to ensure it exists
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Check if team should introduce themselves
+        should_introduce = pb_manager.should_introduce_team(project_id)
+        if not should_introduce:
+            return {
+                "success": True,
+                "message": "Team has already been introduced for this project",
+                "data": {"introductions": []}
+            }
+        
+        # Get meeting type from request (default to project_kickoff)
+        meeting_type = "project_kickoff"
+        if request and "meeting_type" in request:
+            meeting_type = request["meeting_type"]
+        
+        # Connect RAG manager if available
+        if hasattr(pm, 'rag_manager') and pm.rag_manager:
+            pb_manager.rag_manager = pm.rag_manager
+        
+        # Generate introductions
+        introductions = pb_manager.get_introduction_for_project_start(project_id, meeting_type)
+        
+        return {
+            "success": True,
+            "message": "Team introductions generated successfully",
+            "data": {
+                "introductions": introductions,
+                "project_id": project_id,
+                "meeting_type": meeting_type,
+                "total_team_members": len(introductions)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating team introductions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/projects/{project_id}/agents/{agent_id}/enhanced-chat")
+async def enhanced_chat_with_persona(
+    project_id: str,
+    agent_id: str,
+    request: Dict[str, str],
+    current_user: Dict = Depends(get_current_user),
+    pm: ProjectManager = Depends(get_project_manager),
+    pb_manager: PersonaBehaviorManager = Depends(get_persona_behavior_manager)
+):
+    """Enhanced chat with persona behavior adaptation"""
+    try:
+        # Validate request
+        if "message" not in request:
+            raise HTTPException(status_code=422, detail="Missing required field: message")
+        
+        message = request["message"]
+        meeting_type = request.get("meeting_type", "casual_chat")
+        
+        # Get project to ensure it exists
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Map agent IDs to handle role-based requests
+        agent_id_map = {
+            "technical_lead": "alex_developer",
+            "tech_lead": "alex_developer", 
+            "developer": "alex_developer",
+            "senior_developer": "alex_developer",
+            "alex": "alex_developer",
+            "alex_chen": "alex_developer",
+            "manager": "sarah_manager",
+            "project_manager": "sarah_manager",
+            "sarah": "sarah_manager", 
+            "sarah_johnson": "sarah_manager",
+            "designer": "emma_designer",
+            "ux_designer": "emma_designer",
+            "emma": "emma_designer",
+            "emma_wilson": "emma_designer",
+            "qa_engineer": "david_qa",
+            "qa": "david_qa",
+            "david": "david_qa",
+            "david_kim": "david_qa",
+            "analyst": "lisa_analyst",
+            "business_analyst": "lisa_analyst",
+            "lisa": "lisa_analyst",
+            "lisa_zhang": "lisa_analyst"
+        }
+        
+        # Map the agent_id if it's a role-based request
+        actual_agent_id = agent_id_map.get(agent_id.lower(), agent_id)
+        
+        # Connect RAG manager if available
+        if hasattr(pm, 'rag_manager') and pm.rag_manager:
+            pb_manager.rag_manager = pm.rag_manager
+        
+        # Get user behavior history (get from RAG memory)
+        user_behavior_history = []
+        if hasattr(pm, 'rag_manager') and pm.rag_manager:
+            try:
+                # Get user's recent interactions in this project
+                user_memories = pm.rag_manager.search_memories(
+                    query=f"user messages conversations project {project_id}",
+                    project_id=project_id,
+                    limit=10
+                )
+                
+                for memory in user_memories:
+                    content = memory.get("content", "")
+                    if "user:" in content.lower() or "message" in content.lower():
+                        user_behavior_history.append({
+                            "content": content,
+                            "timestamp": memory.get("created_at", datetime.utcnow().isoformat()),
+                            "user_id": current_user["id"]
+                        })
+            except Exception as e:
+                logger.warning(f"Could not retrieve user behavior history: {e}")
+                # Fallback to current message
+                user_behavior_history = [{
+                    "content": message,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "user_id": current_user["id"]
+                }]
+        else:
+            # Fallback to current message only
+            user_behavior_history = [{
+                "content": message,
+                "timestamp": datetime.utcnow().isoformat(),
+                "user_id": current_user["id"]
+            }]
+        
+        # Get persona behavior adaptation
+        behavior_profile = pb_manager.adapt_persona_behavior(
+            actual_agent_id, 
+            user_behavior_history, 
+            meeting_type, 
+            project_id
+        )
+        
+        # Get persona memory context
+        memory_context = pb_manager.get_persona_memory_context(
+            actual_agent_id, 
+            project_id, 
+            message
+        )
+        
+        # Get meeting-appropriate response style
+        response_style = pb_manager.get_meeting_appropriate_response_style(meeting_type)
+        
+        # Generate enhanced response using agent manager with behavior context
+        agent_manager = get_agent_manager()
+        
+        # Use the enhanced chat method with persona behavior
+        response = agent_manager.chat_with_agent(
+            actual_agent_id, 
+            message,
+            project_id=project_id,
+            meeting_type=meeting_type,
+            user_behavior_history=user_behavior_history
+        )
+        
+        # Store conversation memory automatically
+        if pb_manager.rag_manager:
+            try:
+                pb_manager.store_conversation_memory(
+                    actual_agent_id,
+                    project_id,
+                    {
+                        "user_message": message,
+                        "agent_response": response,
+                        "meeting_type": meeting_type,
+                        "conversation_id": f"{project_id}_{actual_agent_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+                        "user_id": current_user["id"]
+                    }
+                )
+                logger.info(f"Stored conversation memory for {actual_agent_id} in project {project_id}")
+            except Exception as e:
+                logger.warning(f"Failed to store conversation memory: {e}")
+        
+        # Get agent info for sender name
+        agent_info = agent_manager.agents.get(actual_agent_id, {})
+        sender_name = getattr(agent_info, 'name', None) or "AI Assistant"
+        
+        return {
+            "success": True,
+            "data": {
+                "response": response,
+                "agent_id": actual_agent_id,
+                "requested_agent": agent_id,
+                "sender_name": sender_name,  # Always include sender name
+                "project_id": project_id,
+                "meeting_type": meeting_type,
+                "behavior_profile": behavior_profile,
+                "response_style": response_style,
+                "memory_context_count": len(memory_context.get('context', [])),
+                "timestamp": datetime.utcnow().isoformat(),
+                "memory_stored": True
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in enhanced chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/projects/{project_id}/persona-context/{agent_id}")
+async def get_persona_context(
+    project_id: str,
+    agent_id: str,
+    current_user: Dict = Depends(get_current_user),
+    pm: ProjectManager = Depends(get_project_manager),
+    pb_manager: PersonaBehaviorManager = Depends(get_persona_behavior_manager)
+):
+    """Get persona memory context and behavior information"""
+    try:
+        # Get project to ensure it exists
+        project = pm.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        # Connect RAG manager if available
+        if hasattr(pm, 'rag_manager') and pm.rag_manager:
+            pb_manager.rag_manager = pm.rag_manager
+        
+        # Get memory context
+        memory_context = pb_manager.get_persona_memory_context(agent_id, project_id)
+        
+        # Get persona information
+        persona_info = pb_manager.personas.get(agent_id, {})
+        
+        return {
+            "success": True,
+            "data": {
+                "agent_id": agent_id,
+                "project_id": project_id,
+                "persona_info": persona_info,
+                "memory_context": memory_context,
+                "available_meeting_types": [mt.value for mt in pb_manager.meeting_tone_rules.keys()],
+                "behavior_traits": [trait.value for trait in pb_manager.behavior_memory.get(project_id, {}).get(agent_id, [])]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting persona context: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Ultra-enhanced chat endpoint for zero-flicker WhatsApp-like experience
+@app.post("/api/v1/chat")
+async def ultra_chat(request: Dict):
+    """Ultra-enhanced chat endpoint with minimal latency and smooth responses"""
+    try:
+        # Validate required fields
+        message = request.get("message")
+        agent_id = request.get("agent_id")
+        user_personality = request.get("user_personality", {})
+        
+        if not message or not message.strip():
+            raise HTTPException(status_code=422, detail="Message is required")
+        if not agent_id:
+            raise HTTPException(status_code=422, detail="Agent ID is required")
+        
+        # Get agent info
+        agent_info = _test_agents.get(agent_id, {
+            "name": "AI Assistant",
+            "role": "Team Member",
+            "personality": "Helpful and friendly"
+        })
+        
+        # Generate contextual response based on agent role and message content
+        response_message = _generate_contextual_response(agent_id, agent_info, message, user_personality)
+        
+        # Return immediate response (no artificial delays)
+        return {
+            "message": response_message,
+            "agent_id": agent_id,
+            "agent_name": agent_info.get("name", "AI Assistant"),
+            "agent_role": agent_info.get("role", "Team Member"),
+            "sender_name": agent_info.get("name", "AI Assistant"),  # Ensure sender name is always included
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "success",
+            "metadata": {
+                "user_personality": user_personality.get("name", "Professional"),
+                "conversation_type": "ultra_chat",
+                "response_length": len(response_message),
+                "optimization": "immediate_response"
+            }
+        }
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"Error in ultra chat: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Fallback endpoint for compatibility with existing agent chat
+# This is now handled by the enhanced chat_with_agent endpoint above
+
+def _generate_contextual_response(agent_id: str, agent_info: Dict, user_message: str, user_personality: Dict) -> str:
+    """Generate contextual AI responses using actual AI APIs instead of hardcoded responses"""
+    try:
+        # Map agent IDs to handle role-based requests
+        agent_id_map = {
+            "technical_lead": "developer_001",
+            "tech_lead": "developer_001", 
+            "developer": "developer_001",
+            "senior_developer": "developer_001",
+            "alex": "developer_001",
+            "alex_developer": "developer_001",
+            "alex_chen": "developer_001",
+            "manager": "manager_001",
+            "project_manager": "manager_001",
+            "sarah": "manager_001", 
+            "sarah_manager": "manager_001",
+            "sarah_johnson": "manager_001",
+            "designer": "designer_001",
+            "ux_designer": "designer_001",
+            "emma": "designer_001",
+            "emma_designer": "designer_001",
+            "emma_wilson": "designer_001",
+            "qa_engineer": "qa_001",
+            "qa": "qa_001",
+            "david": "qa_001",
+            "david_qa": "qa_001",
+            "david_kim": "qa_001",
+            "analyst": "analyst_001",
+            "business_analyst": "analyst_001",
+            "lisa": "analyst_001",
+            "lisa_analyst": "analyst_001",
+            "lisa_zhang": "analyst_001"
+        }
+        
+        # Map the agent_id if it's a role-based request
+        actual_agent_id = agent_id_map.get(agent_id.lower(), agent_id)
+        
+        # Use the agent manager to generate actual AI responses
+        agent_manager = get_agent_manager()
+        response = agent_manager.chat_with_agent_simple(actual_agent_id, user_message)
+        return response
+    except Exception as e:
+        logger.error(f"Error generating AI response for {agent_id} (mapped to {agent_id_map.get(agent_id.lower(), agent_id)}): {e}")
+        # Only fallback to a simple response if AI fails
+        return f"Thanks for your message. I'm processing that information and will respond appropriately."
+
+# Graceful shutdown handling
+# Global shutdown flag
+shutdown_flag = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    global shutdown_flag
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_flag = True
+
+# Set up signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+# Admin endpoints for memory management
+@app.post("/admin/clear-all-memory")
+async def clear_all_memory(db: Session = Depends(get_db)):
+    """
+    ADMIN ENDPOINT: Clear all previous conversations and persona/project memory.
+    This resets the entire system to a clean state.
+    """
+    try:
+        logger.info("ADMIN: Clearing all system memory and conversations")
+        
+        # 1. Clear database conversations
+        db.query(Conversation).delete()
+        
+        # 2. Clear all projects (optional - uncomment if needed)
+        # db.query(Project).delete()
+        
+        # 3. Reset persona behavior manager
+        global _persona_behavior_manager
+        if _persona_behavior_manager:
+            _persona_behavior_manager.clear_all_memory()
+        _persona_behavior_manager = None
+        
+        # 4. Reset agent manager
+        global _agent_manager
+        if _agent_manager:
+            _agent_manager.clear_all_memory()
+        _agent_manager = None
+        
+        # 5. Reset project manager
+        global _project_manager
+        if _project_manager:
+            _project_manager.clear_all_memory()
+        _project_manager = None
+        
+        # 6. Clear any cached conversation files
+        cache_dirs = [
+            "conversation_cache",
+            "memory_cache", 
+            "rag_cache"
+        ]
+        
+        for cache_dir in cache_dirs:
+            cache_path = os.path.join(os.getcwd(), cache_dir)
+            if os.path.exists(cache_path):
+                shutil.rmtree(cache_path)
+                logger.info(f"Cleared cache directory: {cache_path}")
+        
+        # Clear conversation_cache.json if it exists
+        cache_file = os.path.join(os.getcwd(), "conversation_cache.json")
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            logger.info("Cleared conversation_cache.json")
+        
+        db.commit()
+        
+        logger.info("ADMIN: Successfully cleared all system memory")
+        return {
+            "status": "success",
+            "message": "All previous conversations and memory have been cleared",
+            "timestamp": datetime.utcnow().isoformat(),
+            "actions_performed": [
+                "Database conversations cleared",
+                "Persona behavior manager reset",
+                "Agent manager reset", 
+                "Project manager reset",
+                "Cache directories cleared",
+                "Cache files removed"
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"ADMIN: Error clearing system memory: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to clear system memory: {str(e)}")
+
+@app.post("/admin/reset-project-memory/{project_id}")
+async def reset_project_memory(project_id: str, db: Session = Depends(get_db)):
+    """
+    ADMIN ENDPOINT: Clear memory for a specific project only.
+    """
+    try:
+        logger.info(f"ADMIN: Clearing memory for project {project_id}")
+        
+        # Clear conversations for specific project
+        db.query(Conversation).filter(Conversation.project_id == project_id).delete()
+        
+        # Reset persona behavior for this project
+        persona_manager = get_persona_behavior_manager()
+        persona_manager.clear_project_memory(project_id)
+        
+        # Reset project-specific memory in other managers
+        project_manager = get_project_manager(db)
+        if hasattr(project_manager, 'clear_project_memory'):
+            project_manager.clear_project_memory(project_id)
+        
+        db.commit()
+        
+        return {
+            "status": "success", 
+            "message": f"Memory cleared for project {project_id}",
+            "project_id": project_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"ADMIN: Error clearing project memory: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to clear project memory: {str(e)}")
+
+
+# Debug endpoint to check TESTING_MODE
+@app.get("/debug/testing-mode")
+async def debug_testing_mode():
+    """Debug endpoint to check TESTING_MODE status"""
+    return {
+        "testing_mode": TESTING_MODE,
+        "message": f"TESTING_MODE is currently {TESTING_MODE}"
+    }

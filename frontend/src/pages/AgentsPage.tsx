@@ -25,7 +25,7 @@ const AgentsPage: React.FC = () => {
 
   const fetchAgents = async () => {
     try {
-      console.log('Fetching agents from API...');
+      // Debug logging removed
       const response = await fetch(`${API_BASE_URL}/agents`);
       
       if (!response.ok) {
@@ -33,7 +33,7 @@ const AgentsPage: React.FC = () => {
       }
       
       const data = await response.json();
-      console.log('Agents API response:', data);
+      // Debug logging removed
       
       // Transform API data to match our interface
       const transformedAgents = data.agents?.map((agent: any) => ({

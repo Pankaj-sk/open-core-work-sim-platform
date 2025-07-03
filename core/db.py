@@ -2,13 +2,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .config import settings
 
-# Use a SQLite database for simplicity in this example.
-# For production, you would use the DATABASE_URL from your settings.
-DATABASE_URL = "sqlite:///./simulation.db"
+# Use database URL from settings, fallback to SQLite for development
+DATABASE_URL = settings.database_url or "sqlite:///./simulation.db"
 
 engine = create_engine(
     DATABASE_URL, 
-    connect_args={"check_same_thread": False} # Needed for SQLite
+    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

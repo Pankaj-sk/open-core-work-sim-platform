@@ -1,19 +1,4 @@
 // API service for the Work Simulation Platform
-import type {
-  AgentsResponse,
-  AgentResponse,
-  ChatResponse,
-  ChatHistoryResponse,
-  ScenariosResponse,
-  StartSimulationResponse,
-  SimulationResponse,
-  EndSimulationResponse,
-  TemplatesResponse,
-  GenerateArtifactResponse,
-  ArtifactResponse,
-  SimulationConfig,
-  ArtifactRequest,
-} from '../types/api';
 
 // Use environment variable for API base URL, fallback to localhost for dev
 export const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -22,18 +7,6 @@ interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;
-}
-
-interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-interface RegisterRequest {
-  username: string;
-  email: string;
-  password: string;
-  full_name: string;
 }
 
 interface Project {
@@ -104,6 +77,39 @@ interface ConversationDetails {
   }>;
 }
 
+// Dashboard-specific interfaces
+interface DashboardTask {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  deadline: string;
+  category: string;
+  assignedBy?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+interface ConversationSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  participants: string[];
+  conversationType: string;
+  priority: 'high' | 'medium' | 'low';
+  context: string;
+}
+
+interface AgentFeedback {
+  id: string;
+  agentName: string;
+  agentRole: string;
+  content: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  receivedAt: string;
+  deadline?: string;
+  category: 'order' | 'feedback' | 'request' | 'update';
+}
+
 class ApiService {
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('session_token');
@@ -120,20 +126,35 @@ class ApiService {
     const url = `${API_BASE_URL}${endpoint}`;
     const config: RequestInit = {
       headers: this.getAuthHeaders(),
+      mode: 'cors', // Explicitly set CORS mode
+      credentials: 'omit', // Don't send credentials unless needed
       ...options,
     };
 
     try {
+      // Remove debug logging in production
+      // // Debug logging removed
       const response = await fetch(url, config);
-      const data = await response.json();
-
+      
       if (!response.ok) {
-        throw new Error(data.detail || data.message || 'Request failed');
+        // Try to get error details from response
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If we can't parse the error response, use the status text
+          console.warn('Could not parse error response:', e);
+        }
+        throw new Error(errorMessage);
       }
 
+      const data = await response.json();
+      // Remove debug logging in production
+      // // Debug logging removed
       return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error(`API request failed for ${url}:`, error);
       throw error;
     }
   }
@@ -280,6 +301,15 @@ class ApiService {
 
   async getScenarios(): Promise<ApiResponse> {
     return this.makeRequest('/simulations/scenarios');
+  }
+
+  // Dashboard API functions
+  async getDashboardData(projectId: string): Promise<ApiResponse> {
+    return this.makeRequest(`/projects/${projectId}/dashboard`);
+  }
+
+  async getRoleTasks(projectId: string, role: string): Promise<ApiResponse> {
+    return this.makeRequest(`/projects/${projectId}/ai-tasks?role=${role}`);
   }
 }
 

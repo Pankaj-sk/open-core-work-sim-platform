@@ -55,14 +55,14 @@ class Settings(BaseSettings):
     custom_model_api_url: Optional[str] = None
     custom_model_api_key: Optional[str] = None
     custom_model_name: str = "custom-model"
-    custom_model_max_tokens: int = 150
+    custom_model_max_tokens: int = 500
     custom_model_temperature: float = 0.7
     custom_model_payload_format: str = "openai"  # openai, anthropic, generic, custom
     custom_model_auth_method: str = "bearer"  # bearer, api-key, custom
     custom_model_auth_header: str = "Authorization"  # custom auth header name
     
-    # CORS
-    cors_origins: list = ["http://localhost:3000"]
+    # CORS - Remove wildcard for production security
+    cors_origins: list = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]  # Removed "*" wildcard
     
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "allow", "populate_by_name": True}
 

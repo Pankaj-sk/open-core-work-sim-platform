@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ChatWindow from '../components/ChatWindow';
+import ChatWindowUltra from '../components/ChatWindowUltra';
 import EventTimeline from '../components/EventTimeline';
 import ArtifactCard from '../components/ArtifactCard';
 import PreSimulationSetup from '../components/PreSimulationSetup';
@@ -138,11 +138,10 @@ const SimulationPage: React.FC = () => {
         {/* Main Chat Area - Full Screen */}
         <div className="h-full p-4">
           <div className="h-full max-w-6xl mx-auto">
-            <ChatWindow 
+            <ChatWindowUltra 
               selectedAgent={primaryAgent}
               selectedAgents={selectedAgents}
               userPersonality={userPersonality}
-              isFullScreen={true}
             />
           </div>
         </div>

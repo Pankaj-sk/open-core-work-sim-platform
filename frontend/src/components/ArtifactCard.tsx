@@ -62,12 +62,12 @@ const ArtifactCard: React.FC = () => {
   };
 
   const handleView = (artifact: Artifact) => {
-    console.log('Viewing artifact:', artifact.title);
+    // Debug logging removed
     // TODO: Implement artifact viewing
   };
 
   const handleDownload = (artifact: Artifact) => {
-    console.log('Downloading artifact:', artifact.title);
+    // Debug logging removed
     // TODO: Implement artifact download
   };
 

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import uuid
 from datetime import datetime
 from ..config import settings
+from ..persona_behavior import PersonaBehaviorManager
 
 
 class AgentPersona(BaseModel):
@@ -19,57 +20,50 @@ class AgentManager:
     def __init__(self):
         self.agents: Dict[str, AgentPersona] = self._initialize_agents()
         self.conversation_history: Dict[str, List[Dict]] = {}
+        self.persona_behavior_manager = PersonaBehaviorManager()
     
     def _initialize_agents(self) -> Dict[str, AgentPersona]:
-        """Initialize available AI agents"""
+        """Initialize realistic workplace AI agents"""
         agents = {
             "manager_001": AgentPersona(
                 id="manager_001",
                 name="Sarah Johnson",
-                role="Team Manager",
-                personality="Professional and supportive team leader. Uses encouraging phrases like 'Great question' and 'Let's collaborate on this.' Balances deadlines with team well-being. Always offers help and resources to achieve goals.",
-                background="10+ years managing software teams. Known for developing talent and delivering successful projects.",
-                skills=["Leadership", "Project Management", "Team Development", "Strategic Planning"]
+                role="Project Manager",
+                personality="Friendly team leader who knows everyone personally. Always checks in on team members and connects people. Makes sure everyone feels included and valued. Naturally warm and supportive in conversations.",
+                background="5 years managing this team. Knows everyone's strengths, working styles, and personal interests. Great at facilitating introductions and team building.",
+                skills=["Team Leadership", "Project Coordination", "People Management", "Communication"]
             ),
             "developer_001": AgentPersona(
-                id="developer_001",
+                id="developer_001", 
                 name="Alex Chen",
                 role="Senior Developer",
-                personality="Helpful and knowledgeable technical expert who enjoys sharing knowledge. Uses clear explanations and offers multiple solutions. Says things like 'Here's a clean approach' and 'Let me help you with that.' Patient with questions.",
-                background="8 years of full-stack development. Passionate about mentoring and building scalable solutions.",
-                skills=["Full-stack Development", "System Architecture", "Mentoring", "Best Practices"]
-            ),
-            "client_001": AgentPersona(
-                id="client_001",
-                name="Michael Rodriguez",
-                role="Client Representative", 
-                personality="Business-focused but collaborative stakeholder. Asks thoughtful questions about timeline and budget while appreciating technical expertise. Uses phrases like 'I trust your judgment' and 'What would you recommend?'",
-                background="15 years in business development. Experienced in building strong vendor relationships.",
-                skills=["Business Analysis", "Stakeholder Management", "Strategic Planning", "Partnership Building"]
-            ),
-            "hr_001": AgentPersona(
-                id="hr_001",
-                name="Jennifer Williams",
-                role="HR Specialist",
-                personality="Supportive and professional HR partner. Speaks with empathy and uses phrases like 'How can I support you?' and 'Let's find a solution together.' Focuses on employee growth and positive workplace culture.",
-                background="12 years in HR. Known for being approachable and helping employees navigate challenges.",
-                skills=["Employee Relations", "Career Development", "Team Building", "Organizational Culture"]
-            ),
-            "intern_001": AgentPersona(
-                id="intern_001", 
-                name="Jamie Taylor",
-                role="Software Engineering Intern",
-                personality="Enthusiastic and curious learner who asks thoughtful questions. Uses friendly language and shows genuine appreciation for guidance. Often says 'Thank you for explaining' and 'I'm excited to learn more about this.'",
-                background="Computer Science student with strong fundamentals. Eager to apply knowledge and contribute to real projects.",
-                skills=["Quick Learning", "Fresh Perspective", "Research", "Collaboration"]
+                personality="Experienced mentor who loves sharing knowledge with the team. Naturally encouraging and helpful. Always willing to help colleagues and explain technical concepts clearly. Patient and thorough in explanations.",
+                background="8 years with the company, started as junior developer. Known for being patient with questions and helping onboard new team members.",
+                skills=["Full-stack Development", "Mentoring", "Code Reviews", "Architecture"]
             ),
             "qa_001": AgentPersona(
                 id="qa_001",
                 name="David Kim", 
                 role="QA Engineer",
-                personality="Thorough and constructive quality advocate. Focuses on helping the team build better products. Uses phrases like 'Let's ensure quality' and 'Here's how we can improve this.' Collaborative in finding solutions.",
-                background="6 years in quality assurance. Known for catching issues early and suggesting improvements.",
-                skills=["Quality Assurance", "Process Improvement", "User Advocacy", "Testing Strategy"]
+                personality="Thorough but friendly quality advocate. Uses collaborative language and focuses on team success. Builds strong relationships with developers through diplomatic communication.",
+                background="6 years in QA, known for catching issues early and suggesting improvements diplomatically. Well-respected by the development team.",
+                skills=["Quality Assurance", "Test Planning", "Bug Reporting", "Process Improvement"]
+            ),
+            "designer_001": AgentPersona(
+                id="designer_001",
+                name="Emma Wilson",
+                role="UX Designer", 
+                personality="Creative collaborator who loves brainstorming with the team. Naturally curious and enthusiastic about user-centered design. Great at explaining design decisions clearly.",
+                background="4 years designing user experiences. Known for being open to feedback and making design accessible to non-designers.",
+                skills=["UX Design", "User Research", "Prototyping", "Design Systems"]
+            ),
+            "analyst_001": AgentPersona(
+                id="analyst_001",
+                name="Lisa Zhang",
+                role="Business Analyst",
+                personality="Bridge-builder between business and tech teams. Uses clear communication and excellent at translating requirements. Natural connector who helps teams understand each other.",
+                background="7 years as BA, started in business operations. Known for asking the right questions and keeping projects aligned with business goals.",
+                skills=["Requirements Analysis", "Process Mapping", "Stakeholder Management", "Documentation"]
             )
         }
         return agents
@@ -93,8 +87,8 @@ class AgentManager:
         
         return self.agents[agent_id]
     
-    def chat_with_agent(self, agent_id: str, message: str) -> str:
-        """Send a message to an agent and get response"""
+    def chat_with_agent(self, agent_id: str, message: str, project_id: str = None, meeting_type: str = "casual_chat", user_behavior_history: List[Dict] = None) -> str:
+        """Send a message to an agent and get response with persona behavior adaptation"""
         if agent_id not in self.agents:
             raise ValueError(f"Agent {agent_id} not found")
         
@@ -112,8 +106,11 @@ class AgentManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        # Generate response based on agent personality and role
-        response = self._generate_agent_response(agent, message)
+        # Generate response with persona behavior if project context is available
+        if project_id and user_behavior_history is not None:
+            response = self._generate_persona_aware_response(agent, message, project_id, meeting_type, user_behavior_history)
+        else:
+            response = self._generate_agent_response(agent, message)
         
         # Add response to history
         self.conversation_history[agent_id].append({
@@ -124,6 +121,138 @@ class AgentManager:
         })
         
         return response
+    
+    def chat_with_agent_simple(self, agent_id: str, message: str) -> str:
+        """Simple chat method for backward compatibility"""
+        return self.chat_with_agent(agent_id, message)
+    
+    def chat_with_agent_enhanced(self, agent_id: str, message: str, enhanced_system_context: str = None) -> str:
+        """Enhanced chat with agent using persona behavior context"""
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent {agent_id} not found")
+        
+        agent = self.agents[agent_id]
+        
+        # Initialize conversation history if needed
+        if agent_id not in self.conversation_history:
+            self.conversation_history[agent_id] = []
+        
+        # Add message to history
+        self.conversation_history[agent_id].append({
+            "id": str(uuid.uuid4()),
+            "sender": "user",
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Generate response using enhanced context
+        response = self._generate_agent_response_enhanced(agent, message, enhanced_system_context)
+        
+        # Add response to history
+        self.conversation_history[agent_id].append({
+            "id": str(uuid.uuid4()),
+            "sender": agent.name,
+            "message": response,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return response
+    
+    def _generate_persona_aware_response(self, agent: AgentPersona, message: str, project_id: str, meeting_type: str, user_behavior_history: List[Dict]) -> str:
+        """Generate response with persona behavior awareness"""
+        try:
+            # Get behavior adaptation
+            behavior_profile = self.persona_behavior_manager.adapt_persona_behavior(
+                agent.id, user_behavior_history, meeting_type, project_id
+            )
+            
+            # Get conversation context
+            conversation_context = self._build_conversation_context(agent.id)
+            
+            # Build enhanced system prompt with behavior instructions
+            system_prompt = self._build_persona_aware_system_prompt(agent, conversation_context, behavior_profile, meeting_type)
+            
+            # Call model API
+            response = self._call_custom_model(system_prompt, message)
+            
+            # Clean up response to remove artificial patterns
+            response = self._clean_agent_response(agent, response)
+            
+            return response
+            
+        except Exception as e:
+            print(f"Error in persona-aware response generation: {e}")
+            # Fallback to regular response generation
+            return self._generate_agent_response(agent, message)
+    
+    def _generate_agent_response_enhanced(self, agent: AgentPersona, message: str, enhanced_system_context: str = None) -> str:
+        """Generate enhanced response using persona behavior context"""
+        try:
+            # Get conversation history for context
+            conversation_context = self._build_conversation_context(agent.id)
+            
+            # Use enhanced system context if provided, otherwise use standard
+            if enhanced_system_context:
+                system_prompt = enhanced_system_context
+            else:
+                system_prompt = self._build_enhanced_system_prompt(agent, conversation_context)
+            
+            # Call your custom model API
+            response = self._call_custom_model(system_prompt, message)
+            
+            # Clean up response to remove artificial patterns
+            response = self._clean_agent_response(agent, response)
+            
+            return response
+            
+        except Exception as e:
+            print(f"Error calling custom model: {e}")
+            return f"I'm unable to respond right now due to API connectivity issues. Please check your API configuration and try again."
+    
+    def _build_persona_aware_system_prompt(self, agent: AgentPersona, conversation_context: str, behavior_profile: Dict, meeting_type: str) -> str:
+        """Build system prompt enhanced with persona behavior"""
+        
+        # Start with the base enhanced prompt
+        base_prompt = self._build_enhanced_system_prompt(agent, conversation_context)
+        
+        # Add behavior-specific instructions
+        behavior_instructions = behavior_profile.get('behavioral_instructions', [])
+        meeting_context = behavior_profile.get('meeting_context', {})
+        user_adaptations = behavior_profile.get('user_adaptations', [])
+        
+        behavioral_enhancement = f"""
+
+CURRENT MEETING CONTEXT:
+Meeting Type: {meeting_type}
+Tone: {meeting_context.get('tone', 'professional')}
+Energy Level: {meeting_context.get('energy_level', 'medium')}
+Focus: {meeting_context.get('focus', 'general discussion')}
+
+USER BEHAVIOR ADAPTATIONS:
+"""
+        
+        if user_adaptations:
+            for adaptation in user_adaptations:
+                behavioral_enhancement += f"- {adaptation['trait']}: {adaptation['adaptation']}\n"
+        else:
+            behavioral_enhancement += "- No specific adaptations needed - user seems professional\n"
+        
+        behavioral_enhancement += """
+BEHAVIORAL INSTRUCTIONS FOR THIS CONVERSATION:
+"""
+        for instruction in behavior_instructions:
+            behavioral_enhancement += f"- {instruction}\n"
+        
+        behavioral_enhancement += """
+CRITICAL FORMATTING RULES:
+- DO NOT start with your name or artificial greetings like "Hey there! [Name] here"
+- DO NOT include your name in the response - the UI shows who is speaking
+- Jump straight into your natural response to the message
+- Respond directly to what was asked without unnecessary introductions
+
+Remember: You are a real person in this workplace, not an AI. Respond naturally based on the context above while staying true to your personality and role."""
+        
+        return base_prompt + behavioral_enhancement
     
     def _generate_agent_response(self, agent: AgentPersona, message: str) -> str:
         """Generate a response using custom model API with conversation history"""
@@ -136,6 +265,10 @@ class AgentManager:
             
             # Call your custom model API here
             response = self._call_custom_model(system_prompt, message)
+            
+            # Clean up response to remove artificial patterns
+            response = self._clean_agent_response(agent, response)
+            
             return response
             
         except Exception as e:
@@ -150,10 +283,17 @@ class AgentManager:
         """
         import requests
         
+        print(f"[DEBUG] Calling custom model API...")
+        print(f"[DEBUG] Google API Key available: {bool(settings.google_api_key)}")
+        print(f"[DEBUG] OpenAI API Key available: {bool(settings.openai_api_key)}")
+        
         # Priority 1: Google Gemini (current primary API)
         if settings.google_api_key:
             try:
-                return self._call_google_gemini(system_prompt, user_message)
+                print(f"[DEBUG] Trying Google Gemini API...")
+                response = self._call_google_gemini(system_prompt, user_message)
+                print(f"[DEBUG] Gemini response: {response[:100]}...")
+                return response
             except Exception as e:
                 print(f"Google Gemini failed, trying next: {e}")
         
@@ -455,6 +595,11 @@ class AgentManager:
         if agent_id in self.conversation_history:
             self.conversation_history[agent_id] = []
     
+    def clear_all_memory(self):
+        """ADMIN: Clear all agent manager memory"""
+        self.conversation_history.clear()
+        print("AgentManager: All conversation history cleared")
+    
     def _call_google_gemini(self, system_prompt: str, user_message: str) -> str:
         """Call Google Gemini API"""
         import requests
@@ -519,43 +664,37 @@ class AgentManager:
     def _build_enhanced_system_prompt(self, agent: AgentPersona, conversation_context: str) -> str:
         """Build an enhanced system prompt with personality and conversation context"""
         
-        # Define more realistic personality traits for each role
+        # Define realistic personality traits for each role
         personality_enhancements = {
             "manager_001": {
-                "communication_style": "Direct but supportive. Makes decisions quickly. Sometimes pushes back on unrealistic timelines. Uses business jargon occasionally. Says things like 'Let's align on this' and 'What are the risks here?' Can be stressed about deadlines.",
-                "typical_concerns": "Project deadlines, team capacity, stakeholder expectations, budget constraints, resource allocation, delivery quality, stakeholder communication",
-                "interaction_patterns": "Asks follow-up questions about timeline and resources. Occasionally challenges assumptions. Wants concrete plans and next steps. Balances urgency with team well-being. May express frustration with scope creep.",
-                "realistic_reactions": "Shows concern about timeline slips, asks about dependencies, worries about client expectations, appreciates proactive communication"
+                "communication_style": "Warm team leader who knows everyone well. Naturally connects people and facilitates collaboration. Sometimes juggles multiple priorities but always makes time for team members.",
+                "typical_concerns": "Team coordination, project alignment, stakeholder communication, removing blockers, team morale and connections",
+                "interaction_patterns": "Introduces team members to each other. Checks in on progress and team dynamics. Facilitates collaboration. Natural connector who brings people together.",
+                "realistic_reactions": "Excited about team collaboration, concerned about silos, proactive about connecting people, appreciates when team members work well together"
             },
             "developer_001": {
-                "communication_style": "Technical but helpful. Sometimes gets excited about elegant solutions. Can be skeptical of rushed implementations. Uses phrases like 'That's technically challenging' and 'Have we considered the performance implications?' Shows pride in clean code.",
-                "typical_concerns": "Code quality, technical debt, scalability, proper testing, realistic timelines, system architecture, performance bottlenecks, maintainability",
-                "interaction_patterns": "Asks clarifying questions about requirements. Suggests technical alternatives. Points out implementation challenges. Wants to understand the full scope before committing. May push back on unrealistic technical requests.",
-                "realistic_reactions": "Gets frustrated with scope changes late in development, excited about new technology, concerned about shortcuts affecting quality"
-            },
-            "client_001": {
-                "communication_style": "Business-focused and results-oriented. Can be impatient with technical details. Values ROI and competitive advantage. Sometimes interrupts with business questions. Uses phrases like 'What's the bottom line?' and 'How does this impact our market position?' May not fully understand technical constraints.",
-                "typical_concerns": "Time to market, cost, competitive positioning, user adoption, business impact, revenue generation, customer satisfaction, market share",
-                "interaction_patterns": "Focuses on outcomes over process. Asks direct questions about timelines, costs, and business value. Sometimes pushes for faster delivery. Challenges technical complexity if it doesn't serve business goals. May request additional features mid-project.",
-                "realistic_reactions": "Frustrated by delays, excited by competitive advantages, concerned about costs, pushes back on technical explanations that seem like excuses"
-            },
-            "hr_001": {
-                "communication_style": "Diplomatic and people-focused. Considers team dynamics. Sometimes mediates between different perspectives. Uses empathetic language but also enforces policies. Says things like 'Let's think about how this affects the team' and 'I understand your concerns, but we need to follow protocol.'",
-                "typical_concerns": "Team morale, work-life balance, professional development, conflict resolution, compliance, employee retention, workplace culture",
-                "interaction_patterns": "Checks on team well-being. Suggests process improvements for team dynamics. May intervene in conflicts. Balances employee advocacy with company policies.",
-                "realistic_reactions": "Concerned about burnout, excited about team building opportunities, worried about compliance issues, diplomatic in conflicts"
-            },
-            "intern_001": {
-                "communication_style": "Enthusiastic but sometimes uncertain. Asks good questions. Eager to contribute and learn. Can be hesitant to push back. Uses phrases like 'I'm not sure if this is right, but...' and 'Could you help me understand...' Shows genuine curiosity.",
-                "typical_concerns": "Learning opportunities, understanding the bigger picture, making meaningful contributions, not making mistakes, impressing the team",
-                "interaction_patterns": "Asks clarifying questions. Offers fresh perspectives. Sometimes needs guidance. May apologize unnecessarily. Shows gratitude for mentorship.",
-                "realistic_reactions": "Nervous about new responsibilities, excited about learning, grateful for feedback, worried about making mistakes"
+                "communication_style": "Friendly technical mentor who enjoys helping colleagues. Known for taking time to explain things clearly. Sometimes gets excited about elegant solutions and new technologies.",
+                "typical_concerns": "Code quality, helping team members learn, sharing knowledge, technical best practices, mentoring junior developers",
+                "interaction_patterns": "Offers to help with technical challenges. Explains concepts clearly. Shares code examples. Natural teacher who enjoys helping others grow.",
+                "realistic_reactions": "Enthusiastic about teaching, proud when colleagues succeed, patient with questions, excited about new technical challenges"
             },
             "qa_001": {
-                "communication_style": "Detail-oriented and quality-focused. Can be persistent about testing concerns. Thinks about edge cases. Sometimes seen as a 'blocker' but is really quality-focused. Uses phrases like 'I found an issue with...' and 'We need to test this scenario.' Values thorough documentation.",
-                "typical_concerns": "Test coverage, user experience, edge cases, regression risks, quality standards, release readiness, bug resolution",
-                "interaction_patterns": "Raises testing concerns. Asks about quality measures. Suggests additional test scenarios. May delay releases for quality reasons. Documents issues thoroughly.",
-                "realistic_reactions": "Frustrated by skipped testing phases, proud of catching major bugs, concerned about rushed releases, appreciates quality-focused discussions"
+                "communication_style": "Collaborative quality advocate who builds relationships with developers. Uses diplomatic language and focuses on team success over finding faults. Thoughtful in approach.",
+                "typical_concerns": "Quality assurance, user experience, team collaboration, early bug detection, process improvement",
+                "interaction_patterns": "Suggests improvements diplomatically. Works closely with developers. Focuses on preventing issues rather than just catching them.",
+                "realistic_reactions": "Appreciative of developer cooperation, excited about preventing issues, satisfied when quality improves, grateful for collaborative relationships"
+            },
+            "designer_001": {
+                "communication_style": "Creative collaborator who loves brainstorming with the team. Great at explaining design decisions to non-designers. Values team input on design and user experience.",
+                "typical_concerns": "User experience, design accessibility, creative collaboration, visual consistency, user feedback",
+                "interaction_patterns": "Invites input on designs. Explains design thinking clearly. Focuses on user-centered solutions and collaborative design.",
+                "realistic_reactions": "Excited about collaborative design sessions, appreciative of feedback, enthusiastic about user-centered solutions, happy when designs solve real problems"
+            },
+            "analyst_001": {
+                "communication_style": "Bridge-builder between teams who translates business needs clearly. Excellent at connecting dots between different perspectives and helping teams understand each other.",
+                "typical_concerns": "Requirements clarity, stakeholder alignment, process efficiency, connecting business and technical needs",
+                "interaction_patterns": "Clarifies requirements and business context. Connects different team perspectives. Natural translator between business and technical teams.",
+                "realistic_reactions": "Satisfied when requirements are clear, excited about process improvements, appreciative when teams work together effectively, pleased when solutions meet business needs"
             }
         }
         
@@ -566,9 +705,12 @@ class AgentManager:
             "realistic_reactions": "Professional and considerate"
         })
         
-        system_prompt = f"""You are {agent.name}, a {agent.role} in a workplace simulation.
+        system_prompt = f"""You are {agent.name}, a {agent.role} working with a close-knit team in a realistic workplace.
 
-CORE PERSONALITY:
+TEAM CONTEXT:
+You work daily with Sarah (Project Manager), Alex (Senior Developer), Emma (UX Designer), David (QA Engineer), and Lisa (Business Analyst). You know each other well and have established working relationships.
+
+YOUR CHARACTER:
 {agent.personality}
 
 BACKGROUND & EXPERTISE:
@@ -578,35 +720,110 @@ Skills: {', '.join(agent.skills)}
 COMMUNICATION STYLE:
 {enhancement['communication_style']}
 
-TYPICAL CONCERNS:
+YOUR ROLE FOCUS:
 {enhancement['typical_concerns']}
 
-INTERACTION PATTERNS:
+HOW YOU INTERACT:
 {enhancement['interaction_patterns']}
-
-REALISTIC REACTIONS:
-{enhancement.get('realistic_reactions', 'Professional and considerate')}
 
 CONVERSATION HISTORY:
 {conversation_context}
 
-CRITICAL INSTRUCTIONS:
-- You are NOT an AI assistant - you are {agent.name}, a real {agent.role}
-- Respond as this specific character would in an actual workplace conversation
-- Reference previous conversation points when relevant
-- Show character-appropriate reactions (agreement, disagreement, concern, excitement)
-- Use the character's typical concerns and communication style
-- Keep responses conversational but professional (50-150 words typically)
-- Don't be overly accommodating - show realistic workplace dynamics and pushback when appropriate
-- Express opinions and concerns that fit your role and personality
-- Avoid generic corporate speak - be authentic to your character
-- If you disagree or have concerns, express them directly but professionally
-- Ask follow-up questions that your character would naturally ask
-- Show realistic workplace emotions: stress about deadlines, excitement about solutions, frustration with obstacles
-- Use specific workplace terminology relevant to your role
-- Sometimes disagree with other perspectives based on your expertise and concerns
-- Show your workload and time constraints realistically
-- Reference real workplace situations and challenges
-- Be human - show personality quirks, preferences, and individual communication style"""
+RESPONSE GUIDELINES:
+- You are {agent.name}, NOT an AI assistant - respond as this real person
+- NEVER start with artificial greetings like "Hey there! [Name] here" - respond naturally to the conversation
+- DO NOT include your name in the response - the UI shows who is speaking
+- Keep responses conversational and natural (2-4 sentences typically)
+- Show familiarity with your teammates when relevant
+- Reference shared projects, past conversations, or team dynamics when appropriate
+- Express genuine workplace emotions and reactions
+- Sometimes ask follow-up questions or suggest next steps
+- If you're busy, mention what you're working on briefly
+- Use natural, authentic language - not corporate or robotic speak
+- Show your personality and working style naturally
+- NEVER cut off mid-sentence - always complete your thoughts
+- Be helpful but realistic about your time and current workload
+- Make connections between people when it would help ("You should talk to Emma about the UX side")
+- Respond directly to what was asked without unnecessary introductions
+
+CRITICAL FORMATTING:
+- DO NOT start with your name or artificial greetings
+- Jump straight into your natural response to the message
+- The UI already shows you are the sender - focus on the content
+- Always finish your complete thought. Never end abruptly or mid-sentence."""
 
         return system_prompt
+    
+    def _clean_agent_response(self, agent: AgentPersona, response: str) -> str:
+        """Clean up agent response to remove artificial patterns and agent name"""
+        if not response:
+            return response
+            
+        # Remove common artificial greeting patterns (more comprehensive)
+        artificial_patterns = [
+            f"Hey there! {agent.name} here.",
+            f"Hi there! {agent.name} here.",
+            f"Hello there! {agent.name} here.",
+            f"Hi! {agent.name} here.",
+            f"Hello! {agent.name} here.",
+            f"Hey! {agent.name} here.",
+            f"{agent.name} here!",
+            f"{agent.name} here.",
+            f"Hi, {agent.name} here.",
+            f"Hello, {agent.name} here.",
+            f"Hey, {agent.name} here.",
+            f"Hi everyone! {agent.name} here.",
+            f"Hello everyone! {agent.name} here.",
+            # Case insensitive patterns
+            f"hey there! {agent.name.lower()} here.",
+            f"hi there! {agent.name.lower()} here.",
+            f"hello there! {agent.name.lower()} here.",
+        ]
+        
+        # Clean the response
+        cleaned_response = response.strip()
+        
+        # Remove artificial greeting patterns from the beginning (case insensitive)
+        for pattern in artificial_patterns:
+            if cleaned_response.lower().startswith(pattern.lower()):
+                cleaned_response = cleaned_response[len(pattern):].strip()
+                break
+        
+        # More aggressive cleaning for variations
+        greeting_prefixes = [
+            f"Hey there! {agent.name} here",
+            f"Hi! {agent.name} here",
+            f"Hello! {agent.name} here",
+            f"Hey! {agent.name} here",
+            f"{agent.name} here",
+        ]
+        
+        for prefix in greeting_prefixes:
+            # Handle variations with different punctuation
+            for punct in [".", "!", ":"]:
+                pattern = f"{prefix}{punct}"
+                if cleaned_response.lower().startswith(pattern.lower()):
+                    cleaned_response = cleaned_response[len(pattern):].strip()
+                    break
+        
+        # Remove standalone name introductions at the beginning
+        if cleaned_response.startswith(f"{agent.name}:"):
+            cleaned_response = cleaned_response[len(f"{agent.name}:"):].strip()
+        
+        # Remove excessive exclamation marks and artificial enthusiasm
+        cleaned_response = cleaned_response.replace("!!!", "!")
+        cleaned_response = cleaned_response.replace("!!", "!")
+        
+        # Ensure the response doesn't start with just the name
+        lines = cleaned_response.split('\n')
+        if lines and lines[0].strip() == agent.name:
+            lines = lines[1:]
+            cleaned_response = '\n'.join(lines).strip()
+        
+        # Fix encoding issues (common with API responses)
+        cleaned_response = cleaned_response.replace('â', '–')
+        cleaned_response = cleaned_response.replace('â€™', "'")
+        cleaned_response = cleaned_response.replace('â€œ', '"')
+        cleaned_response = cleaned_response.replace('â€', '"')
+        
+        return cleaned_response if cleaned_response else "I'm not sure how to respond to that right now."

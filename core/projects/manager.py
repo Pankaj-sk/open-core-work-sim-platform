@@ -13,6 +13,7 @@ from ..models import (
     ScheduledConversation, User
 )
 from ..models import ProjectMember
+from ..memory.optimized_storage import optimized_storage
 from .rag_manager import RAGManager
 from ..agents.manager import AgentManager
 
@@ -76,6 +77,9 @@ class ProjectManager:
         self._scheduled_tasks: Dict[str, Dict] = {}  # task_id -> scheduled task info
         self._agent_initiated_conversations: Dict[str, List[Dict]] = {}  # project_id -> pending conversations
         self._test_conversations: Dict[str, list] = {}  # project_id -> list of conversations (testing mode)
+        
+        # Try to load existing conversations from a simple file cache
+        self._load_conversations_from_cache()
         
     def set_agent_manager(self, agent_manager: AgentManager):
         """Inject agent manager dependency"""
@@ -273,39 +277,218 @@ class ProjectManager:
                                         sender_id: str,
                                         message: str,
                                         message_type: str = "text") -> Dict[str, Any]:
-        """Add a message to an existing conversation and generate AI responses in testing mode"""
+        """Add a message to an existing conversation and generate AI responses with WhatsApp-like smoothness"""
         
         conversations = self._test_conversations.get(project_id, [])
         for conv in conversations:
             if conv["id"] == conversation_id:
                 if "messages" not in conv or conv["messages"] is None:
                     conv["messages"] = []
-                # Add user message
-                conv["messages"].append({
+                
+                # Add user message with WhatsApp-like metadata
+                user_message = {
                     "id": str(uuid.uuid4()),
                     "sender_id": sender_id,
-                    "sender_name": "You" if sender_id == "user" else sender_id,
+                    "sender_name": "You" if sender_id == "user" else self._get_agent_name(sender_id),
                     "content": message,
                     "timestamp": datetime.utcnow().isoformat(),
-                    "message_type": message_type
-                })
-                # Generate simple AI responses for each agent participant
+                    "message_type": message_type,
+                    "status": "sent",  # WhatsApp-like status: sent, delivered, read
+                    "read_by": [],  # Track who has read the message
+                    "reactions": {},  # For future emoji reactions
+                    "reply_to": None  # For replying to specific messages
+                }
+                conv["messages"].append(user_message)
+                
+                # Update conversation metadata for WhatsApp-like experience
+                conv["last_message"] = {
+                    "content": message[:100] + ("..." if len(message) > 100 else ""),
+                    "timestamp": user_message["timestamp"],
+                    "sender": user_message["sender_name"]
+                }
+                conv["unread_count"] = conv.get("unread_count", 0)
+                conv["last_activity"] = user_message["timestamp"]
+                
+                # Save user message immediately for instant UI feedback
+                self._save_conversations_to_cache()
+                
+                # Cache conversation in optimized storage for faster access
+                optimized_storage.cache_conversation(conversation_id, conv)
+                
+                # Add to RAG memory with batch processing
+                memory_data = {
+                    "content": f"User message: {message}",
+                    "project_id": project_id,
+                    "conversation_id": conversation_id,
+                    "user_id": 1,  # Default user ID in testing mode
+                    "conversation_type": conv.get('conversation_type', 'chat'),
+                    "additional_metadata": {
+                        "sender_name": user_message["sender_name"],
+                        "message_type": message_type,
+                        "timestamp": user_message["timestamp"]
+                    }
+                }
+                
+                if hasattr(self, 'rag_manager') and self.rag_manager:
+                    # Use batch processing for better performance
+                    optimized_storage.batch_add_memory([memory_data])
+                    try:
+                        self.rag_manager.add_memory(**memory_data)
+                    except Exception as e:
+                        print(f"[DEBUG] Failed to save user message to memory: {e}")
+                else:
+                    # If no RAG manager, still batch the memory for later processing
+                    optimized_storage.batch_add_memory([memory_data])
+                
+                # Generate immediate AI responses (no delays)
                 participants = conv.get("participants", [])
-                for participant in participants:
+                ai_responses = []
+                
+                for i, participant in enumerate(participants):
                     if participant != "user" and participant.lower() != "you":
+                        # Generate contextual response immediately
+                        ai_response = self._generate_contextual_response(participant, message, conv.get('conversation_type', 'chat'))
+                        
+                        # Use current timestamp (immediate response)
+                        current_time = datetime.utcnow()
+                        
                         ai_message = {
                             "id": str(uuid.uuid4()),
                             "sender_id": participant,
-                            "sender_name": participant,
-                            "content": f"[{participant}]: I have received your message and will respond soon.",
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "message_type": "text"
+                            "sender_name": self._get_agent_name(participant),  # Always include sender name
+                            "content": ai_response,
+                            "timestamp": current_time.isoformat(),
+                            "message_type": "text",
+                            "status": "sent",
+                            "read_by": [],
+                            "reactions": {},
+                            "reply_to": user_message["id"] if random.random() < 0.3 else None,  # 30% chance of replying
+                            "is_ai_response": True
                         }
+                        
+                        ai_responses.append(ai_message)
                         conv["messages"].append(ai_message)
-                return {"message": "Message added"}
+                        
+                        # Save AI message to memory
+                        if hasattr(self, 'rag_manager') and self.rag_manager:
+                            try:
+                                self.rag_manager.add_memory(
+                                    content=f"AI response from {self._get_agent_name(participant)}: {ai_response}",
+                                    project_id=project_id,
+                                    conversation_id=conversation_id,
+                                    agent_id=participant,
+                                    conversation_type=conv.get('conversation_type', 'chat'),
+                                    additional_metadata={
+                                        "sender_name": self._get_agent_name(participant),
+                                        "message_type": "text",
+                                        "timestamp": ai_message["timestamp"],
+                                        "in_response_to": message[:100],
+                                        "immediate_response": True
+                                    }
+                                )
+                            except Exception as e:
+                                print(f"[DEBUG] Failed to save AI message to memory: {e}")
+                
+                # Update last message to the most recent AI response
+                if ai_responses:
+                    last_ai_message = max(ai_responses, key=lambda x: x["timestamp"])
+                    conv["last_message"] = {
+                        "content": last_ai_message["content"][:100] + ("..." if len(last_ai_message["content"]) > 100 else ""),
+                        "timestamp": last_ai_message["timestamp"],
+                        "sender": last_ai_message["sender_name"]
+                    }
+                
+                # Final save with all AI responses
+                self._save_conversations_to_cache()
+                
+                return {
+                    "message": "Message added successfully",
+                    "conversation": conv,
+                    "user_message": user_message,
+                    "ai_responses": ai_responses,
+                    "typing_indicators": [
+                        {
+                            "agent_id": resp["sender_id"],
+                            "agent_name": resp["sender_name"],
+                            "typing_duration": resp["typing_duration"]
+                        } for resp in ai_responses
+                    ]
+                }
+        
         print(f"[DEBUG] add_message_to_conversation: project_id={project_id}, conversation_id={conversation_id}")
         print(f"[DEBUG] Available conversations for project: {[c['id'] for c in conversations]}")
         raise ValueError(f"Conversation {conversation_id} not found")
+    
+    def _generate_contextual_response(self, agent_name: str, user_message: str, conversation_type: str) -> str:
+        """Generate contextual AI responses using actual AI APIs instead of hardcoded responses"""
+        
+        if not self.agent_manager:
+            # Fallback to basic response if agent manager not available
+            return f"Thanks for your message. Let me think about that and get back to you."
+        
+        # Map agent names to agent IDs for the AgentManager
+        agent_id_map = {
+            "sarah johnson": "manager_001",
+            "alex chen": "developer_001", 
+            "michael rodriguez": "client_001",
+            "jennifer williams": "hr_001",
+            "jamie taylor": "intern_001",
+            "david kim": "qa_001",
+            "maria rodriguez": "qa_001",
+            "michael brown": "developer_001",  # Map tech lead to developer
+            "lisa thompson": "developer_001",  # Map analyst to developer
+            "technical_lead": "developer_001",  # Fix the missing technical_lead
+            "tech_lead": "developer_001",
+            "tech_lead_001": "developer_001",
+            "analyst": "developer_001",
+            "analyst_001": "developer_001",
+            "designer": "developer_001",
+            "designer_001": "developer_001",
+            "qa_engineer": "qa_001",
+            "senior_developer": "developer_001"
+        }
+        
+        # Find the correct agent ID
+        agent_id = None
+        agent_name_lower = agent_name.lower()
+        for name, id in agent_id_map.items():
+            if name in agent_name_lower:
+                agent_id = id
+                break
+        
+        # If no specific agent found, try by role keywords
+        if not agent_id:
+            if "manager" in agent_name_lower or "lead" in agent_name_lower:
+                agent_id = "manager_001"
+            elif "developer" in agent_name_lower or "dev" in agent_name_lower or "tech" in agent_name_lower:
+                agent_id = "developer_001"
+            elif "qa" in agent_name_lower or "quality" in agent_name_lower or "test" in agent_name_lower:
+                agent_id = "qa_001"
+            elif "designer" in agent_name_lower or "design" in agent_name_lower:
+                agent_id = "developer_001"  # Map to developer as we don't have a dedicated designer
+            elif "hr" in agent_name_lower or "human" in agent_name_lower:
+                agent_id = "hr_001"
+            elif "client" in agent_name_lower or "customer" in agent_name_lower:
+                agent_id = "client_001"
+            elif "intern" in agent_name_lower or "junior" in agent_name_lower:
+                agent_id = "intern_001"
+            else:
+                agent_id = "developer_001"  # Default fallback
+        
+        try:
+            # Use the agent manager to generate a proper AI response
+            response = self.agent_manager.chat_with_agent(agent_id, user_message)
+            return response
+            
+        except Exception as e:
+            print(f"Error generating AI response for {agent_name}: {e}")
+            # More specific fallback message based on error type
+            if "Agent" in str(e) and "not found" in str(e):
+                return f"I'm currently unavailable. Please try speaking with a different team member."
+            elif "API" in str(e) or "connectivity" in str(e):
+                return f"I'm having trouble connecting right now. Please try again in a moment."
+            else:
+                return f"Let me get back to you on that. I'm reviewing your message now."
     
     async def _add_conversation_to_memory(self, conversation: Conversation, context: str):
         """Add conversation to RAG memory"""
@@ -379,18 +562,51 @@ class ProjectManager:
                                      agent_id: str,
                                      user_message: str,
                                      context: str) -> Optional[Dict]:
-        """Generate a response from a specific agent"""
+        """Generate a response from a specific agent using actual AI APIs"""
         
         # Find the agent in project members
         agent_member = next((m for m in project.members if m.agent_id == agent_id), None)
         if not agent_member:
             return None
         
-        # Build prompt with context
-        prompt = self._build_agent_prompt(agent_member, context, conversation, user_message)
+        # Map project agent IDs to actual agent manager IDs
+        agent_id_map = {
+            "Sarah Johnson": "manager_001",
+            "Alex Chen": "developer_001", 
+            "Michael Rodriguez": "client_001",
+            "Jennifer Williams": "hr_001",
+            "Jamie Taylor": "intern_001",
+            "David Kim": "qa_001",
+            "Maria Rodriguez": "qa_001",
+            "Michael Brown": "developer_001",  # Map tech lead to developer
+            "Lisa Thompson": "developer_001",  # Map analyst to developer
+            "technical_lead": "developer_001",  # Fix the missing technical_lead
+            "tech_lead_001": "developer_001",
+            "designer_001": "developer_001",
+            "analyst_001": "developer_001",
+            "qa_engineer": "qa_001",
+            "senior_developer": "developer_001"
+        }
         
-        # Generate response (simplified for now)
-        response_content = f"[{agent_member.name}]: I understand. Let me think about that..."
+        # Get the actual agent manager ID
+        actual_agent_id = agent_id_map.get(agent_member.name, "developer_001")
+        
+        try:
+            if self.agent_manager:
+                # Use the agent manager to generate a proper AI response
+                response_content = self.agent_manager.chat_with_agent(actual_agent_id, user_message)
+            else:
+                # Fallback if agent manager not available
+                response_content = f"Thanks for your message. I'll review this and get back to you."
+        except Exception as e:
+            print(f"Error generating AI response for {agent_member.name}: {e}")
+            # More specific error handling
+            if "Agent" in str(e) and "not found" in str(e):
+                response_content = f"I'm currently unavailable. Please try speaking with another team member."
+            elif "API" in str(e) or "connectivity" in str(e):
+                response_content = f"I'm having trouble connecting right now. Let me try to respond later."
+            else:
+                response_content = f"I'm reviewing your message and will get back to you shortly."
         
         # Create message
         response_message = Message(
@@ -621,11 +837,16 @@ class ProjectManager:
         """Get agent name by ID"""
         agent_names = {
             "manager_001": "Sarah Johnson",
-            "developer_001": "Alex Chen",
-            "qa_001": "Maria Rodriguez",
-            "designer_001": "David Kim",
-            "analyst_001": "Lisa Thompson",
-            "tech_lead_001": "Michael Brown"
+            "developer_001": "Alex Chen", 
+            "qa_001": "David Kim",
+            "client_001": "Michael Rodriguez",
+            "hr_001": "Jennifer Williams",
+            "intern_001": "Jamie Taylor",
+            "tech_lead_001": "Alex Chen",  # Map to existing developer
+            "designer_001": "David Kim",   # Map to existing QA
+            "analyst_001": "Alex Chen",    # Map to existing developer
+            "technical_lead": "Alex Chen", # Fix the missing technical_lead
+            "tech_lead": "Alex Chen"
         }
         return agent_names.get(agent_id, f"Agent {agent_id}")
     
@@ -703,37 +924,413 @@ class ProjectManager:
         """Get a specific project"""
         return self.db.query(Project).filter(Project.id == project_id).first()
 
-    def create_conversation(self, conversation: dict):
-        # In testing mode, store the conversation in memory
-        project_id = conversation.get("project_id")
-        if project_id not in self._test_conversations:
-            self._test_conversations[project_id] = []
-        self._test_conversations[project_id].append(conversation)
-        print(f"[DEBUG] Conversation created for project {project_id}: {conversation}")
-        print(f"[DEBUG] All conversations for project {project_id}: {self._test_conversations[project_id]}")
-        return conversation
-
     def get_project_conversations(self, project_id: str):
         # In testing mode, return conversations from memory
         print(f"[DEBUG] get_project_conversations for project {project_id}: {self._test_conversations.get(project_id, [])}")
         return self._test_conversations.get(project_id, [])
 
-    def get_conversation(self, conversation_id: str):
-        # In testing mode, search all projects for the conversation
+    def get_conversation(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+        """Get a conversation by ID from all projects"""
         for project_id, conversations in self._test_conversations.items():
             for conv in conversations:
                 if conv["id"] == conversation_id:
                     return conv
         return None
-
-    def update_conversation(self, conversation_id: str, updated: dict):
-        # In testing mode, update the conversation in memory in-place
+    
+    def update_conversation(self, conversation_id: str, updated_conversation: Dict[str, Any]) -> bool:
+        """Update a conversation in memory"""
+        print(f"[DEBUG] update_conversation called with ID: {conversation_id}")
+        print(f"[DEBUG] Current conversations in memory: {list(self._test_conversations.keys())}")
+        
         for project_id, conversations in self._test_conversations.items():
-            for idx, conv in enumerate(conversations):
+            print(f"[DEBUG] Checking project {project_id} with {len(conversations)} conversations")
+            for i, conv in enumerate(conversations):
                 if conv["id"] == conversation_id:
-                    conv.update(updated)
-                    print(f"[DEBUG] Conversation updated for project {project_id}: {conv}")
-                    print(f"[DEBUG] All conversations for project {project_id}: {self._test_conversations[project_id]}")
-                    return conv
-        print(f"[DEBUG] update_conversation: Conversation {conversation_id} not found in memory.")
-        return None
+                    print(f"[DEBUG] Found conversation at index {i}, updating...")
+                    self._test_conversations[project_id][i] = updated_conversation
+                    self._save_conversations_to_cache()  # Save after updating
+                    print(f"[DEBUG] Successfully updated conversation {conversation_id}")
+                    return True
+        
+        print(f"[DEBUG] Conversation {conversation_id} not found for update")
+        return False
+    
+    def create_conversation(self, conversation: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new conversation"""
+        project_id = conversation.get("project_id")
+        if project_id not in self._test_conversations:
+            self._test_conversations[project_id] = []
+        
+        self._test_conversations[project_id].append(conversation)
+        self._save_conversations_to_cache()  # Save after creating
+        print(f"[DEBUG] Conversation created for project {project_id}: {conversation}")
+        print(f"[DEBUG] All conversations for project {project_id}: {self._test_conversations[project_id]}")
+        return conversation
+    
+    def get_daily_conversations(self, project_id: str, day: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get conversations for a project, optionally filtered by day"""
+        conversations = self._test_conversations.get(project_id, [])
+        
+        # If no day specified, return all conversations
+        if not day:
+            return conversations
+        
+        # Filter by day (this is a simple implementation - in production, use proper date filtering)
+        filtered = []
+        for conv in conversations:
+            try:
+                conv_date = datetime.fromisoformat(conv.get("start_time", "")).date()
+                filter_date = datetime.fromisoformat(day).date()
+                if conv_date == filter_date:
+                    filtered.append(conv)
+            except (ValueError, TypeError):
+                continue
+        
+        return filtered
+    
+    def _load_conversations_from_cache(self):
+        """Load conversations from a simple file cache"""
+        try:
+            cache_file = Path("conversation_cache.json")
+            if cache_file.exists():
+                with open(cache_file, 'r') as f:
+                    self._test_conversations = json.load(f)
+                print(f"[DEBUG] Loaded {sum(len(convs) for convs in self._test_conversations.values())} conversations from cache")
+        except Exception as e:
+            print(f"[DEBUG] Failed to load conversation cache: {e}")
+            
+    def _save_conversations_to_cache(self):
+        """Save conversations to a simple file cache with size optimization"""
+        try:
+            # Limit cache size to prevent memory bloat
+            total_conversations = sum(len(convs) for convs in self._test_conversations.values())
+            if total_conversations > 500:  # Limit total conversations
+                self._cleanup_old_conversations()
+            
+            cache_file = Path("conversation_cache.json")
+            with open(cache_file, 'w') as f:
+                json.dump(self._test_conversations, f, indent=2)
+            print(f"[DEBUG] Saved {total_conversations} conversations to cache")
+        except Exception as e:
+            print(f"[DEBUG] Failed to save conversation cache: {e}")
+    
+    def _cleanup_old_conversations(self):
+        """Remove old conversations to prevent memory bloat"""
+        try:
+            for project_id, conversations in self._test_conversations.items():
+                if len(conversations) > 50:  # Keep only last 50 conversations per project
+                    # Sort by timestamp and keep the most recent
+                    sorted_convs = sorted(conversations, 
+                                        key=lambda x: x.get('start_time', ''), 
+                                        reverse=True)
+                    self._test_conversations[project_id] = sorted_convs[:50]
+                    print(f"[DEBUG] Cleaned up conversations for project {project_id}")
+        except Exception as e:
+            print(f"[DEBUG] Failed to cleanup conversations: {e}")
+    
+    def mark_messages_as_read(self, project_id: str, conversation_id: str, reader_id: str) -> bool:
+        """Mark messages as read by a participant (WhatsApp-like read receipts)"""
+        conversations = self._test_conversations.get(project_id, [])
+        for conv in conversations:
+            if conv["id"] == conversation_id:
+                messages = conv.get("messages", [])
+                for message in messages:
+                    if message["sender_id"] != reader_id:  # Don't mark own messages as read
+                        if reader_id not in message.get("read_by", []):
+                            message.setdefault("read_by", []).append({
+                                "user_id": reader_id,
+                                "timestamp": datetime.utcnow().isoformat()
+                            })
+                
+                # Reset unread count for this user
+                conv["unread_count"] = 0
+                self._save_conversations_to_cache()
+                return True
+        return False
+    
+    def add_typing_indicator(self, project_id: str, conversation_id: str, agent_id: str, duration: int = 3) -> Dict[str, Any]:
+        """Add typing indicator for smooth WhatsApp-like experience"""
+        return {
+            "conversation_id": conversation_id,
+            "agent_id": agent_id,
+            "agent_name": self._get_agent_name(agent_id),
+            "typing": True,
+            "duration": duration,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    def get_conversation_preview(self, conversation: Dict[str, Any]) -> Dict[str, Any]:
+        """Get WhatsApp-like conversation preview for the conversation list"""
+        last_message = conversation.get("last_message", {})
+        messages = conversation.get("messages", [])
+        
+        # Calculate unread count
+        unread_count = 0
+        for message in messages:
+            if message.get("sender_id") != "user" and not message.get("read_by"):
+                unread_count += 1
+        
+        # Get participant names (excluding user)
+        participants = [p for p in conversation.get("participants", []) if p != "user"]
+        participant_names = [self._get_agent_name(p) for p in participants]
+        
+        return {
+            "id": conversation["id"],
+            "title": conversation.get("title", "Group Chat"),
+            "participants": participant_names,
+            "participant_count": len(participants) + 1,  # +1 for user
+            "last_message": {
+                "content": last_message.get("content", "No messages yet"),
+                "sender": last_message.get("sender", ""),
+                "timestamp": last_message.get("timestamp", conversation.get("start_time", "")),
+                "is_user": last_message.get("sender") == "You"
+            },
+            "unread_count": unread_count,
+            "status": conversation.get("status", "active"),
+            "conversation_type": conversation.get("conversation_type", "chat"),
+            "last_activity": conversation.get("last_activity", conversation.get("start_time", "")),
+            "is_group": len(participants) > 1,
+            "avatar": self._get_conversation_avatar(conversation)
+        }
+    
+    def _get_conversation_avatar(self, conversation: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate avatar info for conversation (group or individual)"""
+        participants = [p for p in conversation.get("participants", []) if p != "user"]
+        
+        if len(participants) == 1:
+            # Individual chat
+            agent_id = participants[0]
+            return {
+                "type": "individual",
+                "agent_id": agent_id,
+                "name": self._get_agent_name(agent_id),
+                "initials": self._get_agent_initials(agent_id),
+                "color": self._get_agent_color(agent_id)
+            }
+        else:
+            # Group chat
+            return {
+                "type": "group",
+                "participant_count": len(participants) + 1,
+                "initials": "GC",  # Group Chat
+                "color": "#4CAF50"  # Green for group chats
+            }
+    
+    def _get_agent_initials(self, agent_id: str) -> str:
+        """Get agent initials for avatar"""
+        name = self._get_agent_name(agent_id)
+        parts = name.split()
+        if len(parts) >= 2:
+            return f"{parts[0][0]}{parts[1][0]}".upper()
+        elif len(parts) == 1:
+            return parts[0][:2].upper()
+        return "AI"
+    
+    def _get_agent_color(self, agent_id: str) -> str:
+        """Get consistent color for agent avatar"""
+        colors = {
+            "manager_001": "#2196F3",    # Blue for managers
+            "developer_001": "#4CAF50",  # Green for developers  
+            "qa_001": "#FF9800",         # Orange for QA
+            "designer_001": "#9C27B0",   # Purple for designers
+            "analyst_001": "#F44336",    # Red for analysts
+            "tech_lead_001": "#00BCD4"   # Cyan for tech leads
+        }
+        return colors.get(agent_id, "#757575")  # Gray as default
+    
+    def update_conversation_activity(self, project_id: str, conversation_id: str) -> bool:
+        """Update last activity timestamp for conversation sorting"""
+        conversations = self._test_conversations.get(project_id, [])
+        for conv in conversations:
+            if conv["id"] == conversation_id:
+                conv["last_activity"] = datetime.utcnow().isoformat()
+                self._save_conversations_to_cache()
+                return True
+        return False
+    
+    async def generate_dashboard_content(self, project_id: str) -> Dict[str, Any]:
+        """Generate AI-powered dashboard content with tasks, feedback, and suggestions"""
+        project = self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        if not self.agent_manager:
+            return {
+                "tasks": [],
+                "feedback": "Please configure AI API keys to get personalized feedback.",
+                "suggestions": [],
+                "deadlines": [],
+                "responsibilities": []
+            }
+        try:
+            dashboard_prompt = f"""Generate dashboard content for project: {project.name}
+Description: {project.description}
+Provide:
+1. Current high-priority tasks (3-5 items)
+2. Project feedback and status insights
+3. Actionable suggestions for improvement
+4. Important deadlines to track
+5. Key responsibilities by role
+Format as detailed, specific workplace insights."""
+            ai_response = self.agent_manager.chat_with_agent("manager_001", dashboard_prompt)
+            dashboard_data = self._parse_dashboard_response(ai_response, project)
+            return dashboard_data
+        except Exception as e:
+            print(f"Error generating dashboard content: {e}")
+            return {
+                "tasks": ["Review project status", "Update team on progress", "Plan next sprint"],
+                "feedback": "AI dashboard generation encountered an error. Please check your API configuration.",
+                "suggestions": ["Configure AI API keys for personalized insights"],
+                "deadlines": [],
+                "responsibilities": []
+            }
+
+    async def generate_role_tasks(self, project_id: str, role: str) -> list:
+        """Generate AI-powered role-specific tasks"""
+        project = self.get_project(project_id)
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        if not self.agent_manager:
+            return [{"title": "Configure AI API", "description": "Add API keys to enable AI-generated tasks", "priority": "high"}]
+        try:
+            agent_id = "developer_001"
+            if "manager" in role.lower():
+                agent_id = "manager_001"
+            elif "qa" in role.lower():
+                agent_id = "qa_001"
+            elif "designer" in role.lower():
+                agent_id = "designer_001"
+            role_prompt = f"""Generate specific tasks for a {role} working on project: {project.name}
+Description: {project.description}
+Provide 4-6 realistic, actionable tasks with:
+- Clear titles
+- Detailed descriptions
+- Priority levels (high/medium/low)
+- Estimated time/effort
+Make tasks specific to {role} responsibilities in a real workplace."""
+            ai_response = self.agent_manager.chat_with_agent(agent_id, role_prompt)
+            tasks = self._parse_tasks_response(ai_response, role)
+            return tasks
+        except Exception as e:
+            print(f"Error generating role tasks: {e}")
+            return [
+                {
+                    "title": f"Review {role} responsibilities",
+                    "description": "AI task generation encountered an error. Please check API configuration.",
+                    "priority": "medium",
+                    "estimated_time": "30 minutes"
+                }
+            ]
+
+    def _parse_dashboard_response(self, ai_response: str, project: Project) -> Dict[str, Any]:
+        """Parse AI response into structured dashboard data"""
+        lines = ai_response.split('\n')
+        tasks = []
+        suggestions = []
+        deadlines = []
+        responsibilities = []
+        feedback = ai_response[:200] + "..." if len(ai_response) > 200 else ai_response
+        current_section = None
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if "task" in line.lower() and (":" in line or line.endswith("s")):
+                current_section = "tasks"
+                continue
+            elif "suggestion" in line.lower() or "recommend" in line.lower():
+                current_section = "suggestions"
+                continue
+            elif "deadline" in line.lower() or "due" in line.lower():
+                current_section = "deadlines"
+                continue
+            elif "responsib" in line.lower() or "role" in line.lower():
+                current_section = "responsibilities"
+                continue
+            if line.startswith(('-', '•', '*', '1.', '2.', '3.', '4.', '5.')):
+                item = line.lstrip('-•*0123456789. ')
+                if current_section == "tasks" and item:
+                    tasks.append({"title": item, "priority": "medium", "status": "pending"})
+                elif current_section == "suggestions" and item:
+                    suggestions.append(item)
+                elif current_section == "deadlines" and item:
+                    deadlines.append({"title": item, "date": (datetime.now() + timedelta(days=random.randint(1, 30))).strftime("%Y-%m-%d")})
+                elif current_section == "responsibilities" and item:
+                    responsibilities.append(item)
+        return {
+            "tasks": tasks[:5],
+            "feedback": feedback,
+            "suggestions": suggestions[:3],
+            "deadlines": deadlines[:5],
+            "responsibilities": responsibilities[:5]
+        }
+
+    def _parse_tasks_response(self, ai_response: str, role: str) -> list:
+        """Parse AI response into structured task list"""
+        lines = ai_response.split('\n')
+        tasks = []
+        current_task = {}
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(('-', '•', '*')) or any(line.startswith(f"{i}.") for i in range(1, 10)):
+                if current_task.get('title'):
+                    tasks.append(current_task)
+                title = line.lstrip('-•*0123456789. ')
+                current_task = {
+                    "title": title,
+                    "description": "",
+                    "priority": "medium",
+                    "estimated_time": "2-4 hours",
+                    "role": role
+                }
+            elif current_task and line:
+                if current_task.get('description'):
+                    current_task['description'] += " " + line
+                else:
+                    current_task['description'] = line
+                if "high" in line.lower() and "priority" in line.lower():
+                    current_task['priority'] = "high"
+                elif "low" in line.lower() and "priority" in line.lower():
+                    current_task['priority'] = "low"
+        if current_task.get('title'):
+            tasks.append(current_task)
+        if not tasks:
+            tasks = [
+                {
+                    "title": f"Review current {role} workload",
+                    "description": "Assess current responsibilities and prioritize upcoming work",
+                    "priority": "medium",
+                    "estimated_time": "1 hour",
+                    "role": role
+                }
+            ]
+        return tasks[:6]
+
+    def clear_all_memory(self):
+        """ADMIN: Clear all project manager memory"""
+        self._test_conversations.clear()
+        self._conversation_schedules.clear()
+        self._scheduled_tasks.clear()
+        self._agent_initiated_conversations.clear()
+        if hasattr(self, 'rag_manager') and self.rag_manager:
+            try:
+                self.rag_manager.clear_all_memories()
+            except Exception as e:
+                print(f"Could not clear RAG memory: {e}")
+        logger.info("ProjectManager: All memory cleared")
+    
+    def clear_project_memory(self, project_id: str):
+        """ADMIN: Clear memory for a specific project"""
+        if project_id in self._test_conversations:
+            del self._test_conversations[project_id]
+        if project_id in self._conversation_schedules:
+            del self._conversation_schedules[project_id]
+        if project_id in self._agent_initiated_conversations:
+            del self._agent_initiated_conversations[project_id]
+        if hasattr(self, 'rag_manager') and self.rag_manager:
+            try:
+                self.rag_manager.clear_project_memories(project_id)
+            except Exception as e:
+                print(f"Could not clear RAG memory for project {project_id}: {e}")
+        logger.info(f"ProjectManager: Memory cleared for project {project_id}")
