@@ -23,6 +23,7 @@ class AgentManager:
         self.agents: Dict[str, AgentPersona] = self._initialize_agents()
         self.conversation_history: Dict[str, List[Dict]] = {}
         self.persona_behavior_manager = PersonaBehaviorManager()
+        self.logger = logging.getLogger(__name__)
         
         # Enhanced RAG memory system
         self.enhanced_rag = EnhancedRAGManager()
@@ -874,3 +875,110 @@ CRITICAL FORMATTING:
         cleaned_response = cleaned_response.replace('â€', '"')
         
         return cleaned_response if cleaned_response else "I'm not sure how to respond to that right now."
+    
+    def _build_enhanced_system_prompt_with_emotions(self, agent: AgentPersona, conversation_context: str, 
+                                                   project_id: str = None, target_participant: str = None) -> str:
+        """Build enhanced system prompt with emotional context from RAG"""
+        
+        # Get base enhanced prompt
+        base_prompt = self._build_enhanced_system_prompt(agent, conversation_context)
+        
+        # Add emotional context if available
+        if project_id and target_participant and hasattr(self, 'enhanced_rag'):
+            try:
+                # Import here to avoid circular imports
+                from ..calls.emotion_analyzer import AIEmotionAnalyzer
+                emotion_analyzer = AIEmotionAnalyzer()
+                
+                # Get enhanced emotional context
+                emotion_context = emotion_analyzer.enhance_agent_context_with_emotions(
+                    agent.id, target_participant, project_id, self.enhanced_rag
+                )
+                
+                # Append emotion context to base prompt
+                emotion_enhanced_prompt = base_prompt + f"""
+
+{emotion_context}
+
+IMPORTANT: Use this emotional context to inform your response style and empathy level. 
+Be naturally responsive to the person's emotional state and communication patterns.
+"""
+                
+                return emotion_enhanced_prompt
+                
+            except Exception as e:
+                self.logger.error(f"Error adding emotional context: {e}")
+                return base_prompt
+        
+        return base_prompt
+    
+    def chat_with_agent_emotion_aware(self, agent_id: str, message: str, project_id: str = None, 
+                                     target_participant: str = None) -> str:
+        """Chat with agent using emotion-aware context from RAG"""
+        
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent {agent_id} not found")
+        
+        agent = self.agents[agent_id]
+        
+        # Initialize conversation history if needed
+        if agent_id not in self.conversation_history:
+            self.conversation_history[agent_id] = []
+        
+        # Add message to history
+        self.conversation_history[agent_id].append({
+            "id": str(uuid.uuid4()),
+            "sender": "user",
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Generate response with emotional context
+        try:
+            # Get conversation context
+            conversation_context = self._build_conversation_context(agent_id)
+            
+            # Build emotion-aware system prompt
+            system_prompt = self._build_enhanced_system_prompt_with_emotions(
+                agent, conversation_context, project_id, target_participant
+            )
+            
+            # Generate response
+            response = self._call_custom_model(system_prompt, message)
+            
+            # Clean up response
+            response = self._clean_agent_response(agent, response)
+            
+            # Add response to history
+            self.conversation_history[agent_id].append({
+                "id": str(uuid.uuid4()),
+                "sender": agent.name,
+                "message": response,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Store interaction in RAG if available
+            if hasattr(self, 'enhanced_rag') and project_id:
+                self.enhanced_rag.add_message(
+                    content=f"User: {message}",
+                    project_id=project_id,
+                    conversation_id=f"agent_{agent_id}",
+                    sender=target_participant or "user",
+                    message_type="agent_interaction"
+                )
+                
+                self.enhanced_rag.add_message(
+                    content=f"{agent.name}: {response}",
+                    project_id=project_id,
+                    conversation_id=f"agent_{agent_id}",
+                    sender=agent.name,
+                    agent_id=agent_id,
+                    message_type="agent_response"
+                )
+            
+            return response
+            
+        except Exception as e:
+            self.logger.error(f"Error in emotion-aware chat: {e}")
+            # Fallback to regular chat
+            return self.chat_with_agent(agent_id, message)

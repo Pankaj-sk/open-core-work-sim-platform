@@ -141,7 +141,17 @@ class ApiService {
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
+          console.log('Error response data:', errorData); // Debug log
+          
+          // Handle Pydantic validation errors
+          if (errorData.detail && Array.isArray(errorData.detail)) {
+            const validationErrors = errorData.detail.map((err: any) => 
+              `${err.loc?.join('.') || 'Field'}: ${err.msg || 'Invalid value'}`
+            ).join(', ');
+            errorMessage = `Validation Error: ${validationErrors}`;
+          } else {
+            errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+          }
         } catch (e) {
           // If we can't parse the error response, use the status text
           console.warn('Could not parse error response:', e);
@@ -195,15 +205,19 @@ class ApiService {
     teamSize: number = 5,
     projectType: string = 'web_development'
   ): Promise<ApiResponse> {
+    const requestBody = {
+      name,
+      description,
+      user_role: userRole,
+      team_size: teamSize,
+      project_type: projectType,
+    };
+    
+    console.log('Creating project with data:', requestBody); // Debug log
+    
     return this.makeRequest('/projects', {
       method: 'POST',
-      body: JSON.stringify({
-        name,
-        description,
-        user_role: userRole,
-        team_size: teamSize,
-        project_type: projectType,
-      }),
+      body: JSON.stringify(requestBody),
     });
   }
 

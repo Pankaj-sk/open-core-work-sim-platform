@@ -39,6 +39,8 @@ from .artifacts.generator import artifact_generator
 from .projects.manager import ProjectManager
 from .auth.manager import AuthManager
 from .auth.models import LoginRequest, RegisterRequest, AuthResponse
+from .api_extensions import router as extensions_router  # Import new endpoints
+from .call_endpoints import router as call_router
 from .models import (
     Project,
     Conversation,
@@ -1848,3 +1850,6 @@ async def debug_testing_mode():
         "testing_mode": TESTING_MODE,
         "message": f"TESTING_MODE is currently {TESTING_MODE}"
     }
+
+# Include new routers
+app.include_router(call_router, prefix="/api", tags=["calls"])

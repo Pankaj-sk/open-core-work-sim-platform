@@ -220,3 +220,175 @@ class RAGIndex(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     project = relationship('Project')
+
+
+# --- Call and Code-related Models ---
+
+class CallType(str, Enum):
+    """Types of calls that can be made"""
+    ONE_ON_ONE = "1on1"
+    GROUP = "group"
+    CLIENT = "client"
+    TEAM_MEETING = "team_meeting"
+    STANDUP = "standup"
+    REVIEW = "review"
+
+
+class CallStatus(str, Enum):
+    """Status of calls"""
+    SCHEDULED = "scheduled"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class EmotionType(str, Enum):
+    """Types of emotions that can be detected"""
+    HAPPY = "happy"
+    CONFIDENT = "confident"
+    NERVOUS = "nervous"
+    FRUSTRATED = "frustrated"
+    CALM = "calm"
+    EXCITED = "excited"
+    NEUTRAL = "neutral"
+
+
+class ReviewType(str, Enum):
+    """Types of code reviews"""
+    GENERAL = "general"
+    SECURITY = "security"
+    PERFORMANCE = "performance"
+    STYLE = "style"
+    BUGS = "bugs"
+    DOCUMENTATION = "documentation"
+
+
+class Call(Base):
+    """Model for scheduling and managing calls"""
+    __tablename__ = "calls"
+    
+    id = Column(Integer, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    call_type = Column(String(50), nullable=False)  # CallType enum
+    status = Column(String(50), default="scheduled")  # CallStatus enum
+    scheduled_at = Column(DateTime, nullable=False)
+    started_at = Column(DateTime)
+    ended_at = Column(DateTime)
+    duration_minutes = Column(Integer)
+    dominant_emotion = Column(String(50))  # EmotionType enum
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    participants = relationship("CallParticipant", back_populates="call", cascade="all, delete-orphan")
+    messages = relationship("CallMessage", back_populates="call", cascade="all, delete-orphan")
+    emotions = relationship("CallEmotion", back_populates="call", cascade="all, delete-orphan")
+
+
+class CallParticipant(Base):
+    """Model for call participants (users and AI agents)"""
+    __tablename__ = "call_participants"
+    
+    id = Column(Integer, primary_key=True)
+    call_id = Column(Integer, ForeignKey("calls.id"), nullable=False)
+    participant_id = Column(String, nullable=False)  # User ID or Agent ID
+    participant_type = Column(String(20), nullable=False)  # "user" or "agent"
+    participant_name = Column(String(255), nullable=False)
+    joined_at = Column(DateTime)
+    left_at = Column(DateTime)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    call = relationship("Call", back_populates="participants")
+
+
+class CallMessage(Base):
+    """Model for messages sent during calls"""
+    __tablename__ = "call_messages"
+    
+    id = Column(Integer, primary_key=True)
+    call_id = Column(Integer, ForeignKey("calls.id"), nullable=False)
+    sender_id = Column(String, nullable=False)  # User ID or Agent ID
+    sender_type = Column(String(20), nullable=False)  # "user" or "agent"
+    sender_name = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    call = relationship("Call", back_populates="messages")
+
+
+class CallEmotion(Base):
+    """Model for tracking emotions during calls"""
+    __tablename__ = "call_emotions"
+    
+    id = Column(Integer, primary_key=True)
+    call_id = Column(Integer, ForeignKey("calls.id"), nullable=False)
+    participant_id = Column(String, nullable=False)
+    emotion_type = Column(String(50), nullable=False)  # EmotionType enum
+    intensity = Column(Float, default=0.5)  # 0.0 to 1.0
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    call = relationship("Call", back_populates="emotions")
+
+
+class CodeUpload(Base):
+    """Model for code uploads and analysis"""
+    __tablename__ = "code_uploads"
+    
+    id = Column(Integer, primary_key=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    uploader_id = Column(String, nullable=False)  # User ID
+    original_filename = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_type = Column(String(50), nullable=False)  # e.g., "python", "javascript"
+    file_size = Column(Integer, nullable=False)  # in bytes
+    description = Column(Text)
+    review_type = Column(String(50), default="general")  # ReviewType enum
+    quality_score = Column(Float)  # 0.0 to 1.0
+    complexity_score = Column(Float)  # 0.0 to 1.0
+    security_score = Column(Float)  # 0.0 to 1.0
+    performance_score = Column(Float)  # 0.0 to 1.0
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    reviews = relationship("CodeReview", back_populates="code_upload", cascade="all, delete-orphan")
+
+
+class CodeReview(Base):
+    """Model for code reviews and feedback"""
+    __tablename__ = "code_reviews"
+    
+    id = Column(Integer, primary_key=True)
+    code_upload_id = Column(Integer, ForeignKey("code_uploads.id"), nullable=False)
+    reviewer_id = Column(String, nullable=False)  # User ID or Agent ID
+    reviewer_type = Column(String(20), nullable=False)  # "user" or "agent"
+    reviewer_name = Column(String(255), nullable=False)
+    review_type = Column(String(50), nullable=False)  # ReviewType enum
+    feedback = Column(Text, nullable=False)
+    rating = Column(Integer)  # 1 to 5 stars
+    suggestions = Column(JSON)  # List of improvement suggestions
+    issues_found = Column(JSON)  # List of issues/bugs found
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    code_upload = relationship("CodeUpload", back_populates="reviews")
+
+
+class EmotionProfile(Base):
+    """Model for tracking user emotion profiles over time"""
+    __tablename__ = "emotion_profiles"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String, nullable=False)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    dominant_emotion = Column(String(50), nullable=False)  # EmotionType enum
+    emotion_scores = Column(JSON)  # Dict of emotion types and their scores
+    confidence_level = Column(Float, default=0.5)  # 0.0 to 1.0
+    stress_level = Column(Float, default=0.5)  # 0.0 to 1.0
+    engagement_level = Column(Float, default=0.5)  # 0.0 to 1.0
+    analysis_date = Column(DateTime, default=datetime.utcnow)
+    context = Column(String(255))  # What triggered this emotion analysis

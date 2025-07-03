@@ -99,15 +99,27 @@ const DashboardPage: React.FC = () => {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!createForm.name || !createForm.userRole) {
+    // Validate form data
+    if (!createForm.name || createForm.name.trim().length < 3) {
+      alert('Project name must be at least 3 characters long');
+      return;
+    }
+    
+    if (!createForm.userRole) {
+      alert('Please select your role');
+      return;
+    }
+
+    if (createForm.teamSize < 2 || createForm.teamSize > 20) {
+      alert('Team size must be between 2 and 20');
       return;
     }
 
     try {
       setCreating(true);
       const response = await apiService.createProject(
-        createForm.name,
-        createForm.description,
+        createForm.name.trim(),
+        createForm.description.trim(),
         createForm.userRole,
         createForm.teamSize,
         createForm.projectType
@@ -315,6 +327,8 @@ const DashboardPage: React.FC = () => {
                 <input
                   type="text"
                   required
+                  minLength={3}
+                  maxLength={200}
                   value={createForm.name}
                   onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
