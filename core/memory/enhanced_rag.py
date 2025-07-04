@@ -9,13 +9,20 @@ import hashlib
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-import numpy as np
-from sentence_transformers import SentenceTransformer
-import faiss
 import logging
 from collections import defaultdict
 import threading
 import asyncio
+
+# Lazy imports for heavy dependencies
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
+
+# SentenceTransformer and FAISS will be imported lazily in _ensure_model_loaded
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +36,7 @@ class ConversationSummary:
     timestamp: datetime
     participants: List[str]
     topics: List[str]
-    embedding: Optional[np.ndarray] = None
+    embedding: Optional[Any] = None  # Changed from np.ndarray to Any for lazy loading
 
 @dataclass
 class ContextWindow:
@@ -70,12 +77,14 @@ class EnhancedRAGManager:
     
     def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
         """Initialize enhanced RAG manager"""
-        self.embedding_model = SentenceTransformer(embedding_model)
-        self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+        self.embedding_model_name = embedding_model
+        self.embedding_model = None
+        self.embedding_dim = None
+        self._model_initialized = False
         
-        # FAISS indexes
-        self.message_index = faiss.IndexFlatIP(self.embedding_dim)
-        self.summary_index = faiss.IndexFlatIP(self.embedding_dim)
+        # FAISS indexes (will be initialized when model loads)
+        self.message_index = None
+        self.summary_index = None
         
         # Memory storage
         self.raw_messages: Dict[str, Dict] = {}
@@ -95,10 +104,10 @@ class EnhancedRAGManager:
         self.max_raw_messages = 50  # Keep max 50 raw messages per conversation
         
         # Caching
-        self.embedding_cache: Dict[str, np.ndarray] = {}
+        self.embedding_cache: Dict[str, Any] = {}  # Changed from np.ndarray to Any
         self.summary_cache: Dict[str, str] = {}
         
-    def _get_embedding_cached(self, text: str) -> np.ndarray:
+    def _get_embedding_cached(self, text: str) -> Any:  # Changed return type for lazy loading
         """Get embedding with caching"""
         # Use hash of text as cache key
         cache_key = hashlib.md5(text.encode()).hexdigest()

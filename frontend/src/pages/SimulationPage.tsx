@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ChatWindowUltra from '../components/ChatWindowUltra';
 import EventTimeline from '../components/EventTimeline';
 import ArtifactCard from '../components/ArtifactCard';
 import PreSimulationSetup from '../components/PreSimulationSetup';
-import { RotateCcw, Settings, X, User, Users, Lightbulb } from 'lucide-react';
+import { RotateCcw, Settings, X, User, Users, Lightbulb, Play } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 
 interface UserPersonality {
   id: string;
@@ -52,60 +56,78 @@ const SimulationPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">
       {/* Enhanced Header with simulation info */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-gray-200 sticky top-0 z-20"
+      >
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-3">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-xl shadow-sm">
-                  <Settings className="text-white" size={24} />
-                </div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 p-3 rounded-xl shadow-lg"
+                >
+                  <Play className="text-white" size={24} />
+                </motion.div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Workplace Simulation</h1>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                    Workplace Simulation
+                  </h1>
                   <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
-                    <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span>Playing as: <strong className="text-blue-600">{userPersonality?.name}</strong></span>
+                    <div className="flex items-center space-x-2">
+                      <motion.div
+                        animate={{ opacity: [1, 0.5, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="w-2 h-2 bg-green-400 rounded-full"
+                      />
+                      <span>Playing as: <Badge variant="secondary" className="ml-1">{userPersonality?.name}</Badge></span>
                     </div>
                     <span>•</span>
-                    <span>Participants: <strong>{selectedAgents.length}</strong></span>
+                    <span>Participants: <strong className="text-blue-600">{selectedAgents.length}</strong></span>
                   </div>
                 </div>
               </div>
             </div>
             
             <div className="flex items-center space-x-3">
-              <button
+              <Button
+                variant={isSidebarOpen ? "default" : "outline"}
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:shadow-md ${
-                  isSidebarOpen 
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200' 
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                }`}
+                className="transition-all duration-200"
               >
-                <Settings size={16} />
-                <span>Settings</span>
-              </button>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
               
-              <button
+              <Button
+                variant="outline"
                 onClick={handleResetSimulation}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all duration-200 hover:shadow-md"
+                className="transition-all duration-200"
               >
-                <RotateCcw size={16} />
-                <span>New Simulation</span>
-              </button>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                New Simulation
+              </Button>
             </div>
           </div>
           
           {/* Compact Participants Display */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-4 flex flex-wrap gap-2"
+          >
             <span className="text-sm font-medium text-gray-700 flex items-center">
-              <Users size={16} className="mr-1" />
+              <Users size={16} className="mr-2" />
               Active participants:
             </span>
-            {selectedAgents.slice(0, 3).map(agentId => {
+            {selectedAgents.slice(0, 3).map((agentId, index) => {
               const agentEmojis: { [key: string]: string } = {
                 'manager_001': '👔',
                 'developer_001': '💻',
@@ -115,183 +137,215 @@ const SimulationPage: React.FC = () => {
                 'qa_001': '🔍',
               };
               return (
-                <span 
-                  key={agentId} 
-                  className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+                <motion.div
+                  key={agentId}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 + index * 0.1 }}
                 >
-                  <span>{agentEmojis[agentId]}</span>
-                  <span>{getAgentName(agentId).split('(')[0].trim()}</span>
-                </span>
+                  <Badge variant="outline" className="space-x-1">
+                    <span>{agentEmojis[agentId]}</span>
+                    <span>{getAgentName(agentId).split('(')[0].trim()}</span>
+                  </Badge>
+                </motion.div>
               );
             })}
             {selectedAgents.length > 3 && (
-              <span className="text-xs text-gray-500 px-2 py-1">
+              <Badge variant="secondary">
                 +{selectedAgents.length - 3} more
-              </span>
+              </Badge>
             )}
-          </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Full Screen Chat with Slide-out Sidebar */}
       <div className="relative h-[calc(100vh-140px)]">
         {/* Main Chat Area - Full Screen */}
-        <div className="h-full p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5 }}
+          className="h-full p-6"
+        >
           <div className="h-full max-w-6xl mx-auto">
-            <ChatWindowUltra 
-              selectedAgent={primaryAgent}
-              selectedAgents={selectedAgents}
-              userPersonality={userPersonality}
-            />
+            <Card className="h-full border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+              <CardContent className="h-full p-0">
+                <ChatWindowUltra 
+                  selectedAgent={primaryAgent}
+                  selectedAgents={selectedAgents}
+                  userPersonality={userPersonality}
+                />
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        </motion.div>
 
         {/* Slide-out Sidebar */}
-        <div className={`fixed top-0 right-0 h-full w-96 bg-white border-l border-gray-200 shadow-2xl transform transition-transform duration-300 ease-in-out z-30 ${
-          isSidebarOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}>
-          {/* Sidebar Header */}
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Settings className="text-blue-600" size={20} />
-                <h2 className="text-lg font-bold text-gray-900">Simulation Settings</h2>
-              </div>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                className="p-1 hover:bg-white hover:bg-opacity-50 rounded-lg transition-all duration-200"
-              >
-                <X size={20} className="text-gray-600" />
-              </button>
-            </div>
-          </div>
-
-          {/* Sidebar Content */}
-          <div className="h-full overflow-y-auto pb-20">
-            <div className="p-4 space-y-6">
-              {/* Enhanced User Info Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                    <User size={24} />
+        <AnimatePresence>
+          {isSidebarOpen && (
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 20, stiffness: 100 }}
+              className="fixed top-0 right-0 h-full w-96 bg-white/95 backdrop-blur-sm border-l border-gray-200 shadow-2xl z-30"
+            >
+              {/* Sidebar Header */}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Settings className="text-blue-600" size={20} />
+                    <h2 className="text-lg font-bold text-gray-900">Simulation Settings</h2>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Your Profile</h3>
-                    <p className="text-sm text-blue-600">Active Personality</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="bg-white bg-opacity-70 border border-blue-200 rounded-lg p-3">
-                    <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Name</label>
-                    <p className="text-gray-900 font-medium mt-1">{userPersonality?.name}</p>
-                  </div>
-                  <div className="bg-white bg-opacity-70 border border-blue-200 rounded-lg p-3">
-                    <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Role</label>
-                    <p className="text-gray-900 font-medium mt-1">{userPersonality?.role}</p>
-                  </div>
-                  <div className="bg-white bg-opacity-70 border border-blue-200 rounded-lg p-3">
-                    <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Communication Style</label>
-                    <p className="text-gray-700 text-sm mt-1">{userPersonality?.style}</p>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSidebarOpen(false)}
+                  >
+                    <X size={20} />
+                  </Button>
                 </div>
               </div>
 
-              {/* Active Participants Section */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Users className="text-purple-600" size={20} />
-                  <h3 className="text-lg font-bold text-gray-900">Active Participants</h3>
-                </div>
-                <div className="space-y-3">
-                  {selectedAgents.map(agentId => {
-                    const agentEmojis: { [key: string]: string } = {
-                      'manager_001': '👔',
-                      'developer_001': '💻',
-                      'client_001': '💼',
-                      'hr_001': '👥',
-                      'intern_001': '🎓',
-                      'qa_001': '🔍',
-                    };
-                    const agentColors: { [key: string]: string } = {
-                      'manager_001': 'bg-purple-50 text-purple-700 border-purple-200',
-                      'developer_001': 'bg-blue-50 text-blue-700 border-blue-200',
-                      'client_001': 'bg-green-50 text-green-700 border-green-200',
-                      'hr_001': 'bg-pink-50 text-pink-700 border-pink-200',
-                      'intern_001': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-                      'qa_001': 'bg-red-50 text-red-700 border-red-200',
-                    };
-                    return (
-                      <div 
-                        key={agentId}
-                        className={`flex items-center space-x-3 p-3 rounded-xl border ${agentColors[agentId] || 'bg-gray-50 text-gray-700 border-gray-200'}`}
-                      >
-                        <span className="text-2xl">{agentEmojis[agentId]}</span>
-                        <div className="flex-1">
-                          <p className="font-medium">{getAgentName(agentId).split('(')[0].trim()}</p>
-                          <p className="text-xs opacity-75">{getAgentName(agentId).match(/\((.*?)\)/)?.[1] || 'Colleague'}</p>
+              {/* Sidebar Content */}
+              <div className="h-full overflow-y-auto pb-20">
+                <div className="p-4 space-y-6">
+                  {/* Enhanced User Info Card */}
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white">
+                          <User size={24} />
                         </div>
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <div>
+                          <CardTitle className="text-lg">Your Profile</CardTitle>
+                          <CardDescription className="text-blue-600">Active Personality</CardDescription>
+                        </div>
                       </div>
-                    );
-                  })}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="bg-white/70 border border-blue-200 rounded-lg p-3">
+                        <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Name</label>
+                        <p className="text-gray-900 font-medium mt-1">{userPersonality?.name}</p>
+                      </div>
+                      <div className="bg-white/70 border border-blue-200 rounded-lg p-3">
+                        <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Role</label>
+                        <p className="text-gray-900 font-medium mt-1">{userPersonality?.role}</p>
+                      </div>
+                      <div className="bg-white/70 border border-blue-200 rounded-lg p-3">
+                        <label className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Communication Style</label>
+                        <p className="text-gray-700 text-sm mt-1">{userPersonality?.style}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Active Participants Section */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center space-x-2">
+                        <Users className="text-purple-600" size={20} />
+                        <CardTitle className="text-lg">Active Participants</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {selectedAgents.map(agentId => {
+                        const agentEmojis: { [key: string]: string } = {
+                          'manager_001': '👔',
+                          'developer_001': '💻',
+                          'client_001': '💼',
+                          'hr_001': '👥',
+                          'intern_001': '🎓',
+                          'qa_001': '🔍',
+                        };
+                        return (
+                          <div key={agentId} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                            <span className="text-xl">{agentEmojis[agentId]}</span>
+                            <div>
+                              <p className="font-medium text-gray-900">{getAgentName(agentId)}</p>
+                              <Badge 
+                                variant={agentId === primaryAgent ? "default" : "outline"}
+                                className="text-xs"
+                              >
+                                {agentId === primaryAgent ? 'Primary' : 'Participant'}
+                              </Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+
+                  {/* Event Timeline */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Recent Events</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <EventTimeline />
+                    </CardContent>
+                  </Card>
+
+                  {/* Artifacts */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Artifacts</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ArtifactCard />
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Actions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button variant="outline" className="w-full justify-start">
+                        <Lightbulb className="w-4 h-4 mr-2" />
+                        Generate Scenario
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Adjust Settings
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Tips Card */}
+                  <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
+                    <CardHeader>
+                      <div className="flex items-center space-x-2">
+                        <Lightbulb className="text-yellow-600" size={20} />
+                        <CardTitle className="text-yellow-900">Simulation Tips</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="text-yellow-800 text-sm space-y-2">
+                        <li className="flex items-start space-x-2">
+                          <span className="text-yellow-600 mt-1">•</span>
+                          <span>Stay in character based on your selected personality</span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <span className="text-yellow-600 mt-1">•</span>
+                          <span>Practice active listening and professional communication</span>
+                        </li>
+                        <li className="flex items-start space-x-2">
+                          <span className="text-yellow-600 mt-1">•</span>
+                          <span>Use the sidebar to track conversation progress</span>
+                        </li>
+                      </ul>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-
-              {/* Enhanced Event Timeline */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <EventTimeline />
-              </div>
-              
-              {/* Enhanced Artifacts */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <ArtifactCard />
-              </div>
-
-              {/* Tips Card */}
-              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-6">
-                <div className="flex items-center space-x-2 mb-3">
-                  <Lightbulb className="text-yellow-600" size={20} />
-                  <h3 className="font-semibold text-yellow-900">Simulation Tips</h3>
-                </div>
-                <ul className="text-yellow-800 text-sm space-y-2">
-                  <li className="flex items-start space-x-2">
-                    <span className="text-yellow-600 mt-1">•</span>
-                    <span>Each person responds based on their unique workplace personality</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <span className="text-yellow-600 mt-1">•</span>
-                    <span>Your communication style influences how they interact with you</span>
-                  </li>
-                  <li className="flex items-start space-x-2">
-                    <span className="text-yellow-600 mt-1">•</span>
-                    <span>Try different conversation topics to see varied reactions</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Floating Settings Button (when sidebar is closed) */}
-        {!isSidebarOpen && (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 z-20 flex items-center justify-center"
-          >
-            <Settings size={24} />
-          </button>
-        )}
-
-        {/* Sidebar Overlay */}
-        {isSidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-25 z-20 transition-opacity duration-300"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 };
 
-export default SimulationPage; 
+export default SimulationPage;

@@ -11,12 +11,16 @@ from enum import Enum
 import json
 from dataclasses import dataclass
 import logging
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import numpy as np
-from sentence_transformers import SentenceTransformer
 import requests
 import os
+
+# Lazy imports for heavy ML dependencies
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 
 class EmotionType(Enum):
     CONFIDENT = "confident"
@@ -55,7 +59,7 @@ class AIEmotionAnalyzer:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         
-        # Initialize AI models
+        # Initialize AI models (lazy loading)
         self.emotion_classifier = None
         self.sentiment_analyzer = None
         self.embedding_model = None
@@ -64,15 +68,30 @@ class AIEmotionAnalyzer:
         self.voice_emotion_analyzer = None
         self.voice_feature_extractor = None
         
-        # Initialize models
-        self._initialize_models()
+        # Flag to track if models are initialized
+        self._models_initialized = False
         
         # Context understanding
         self.conversation_context = {}
         
+    def _ensure_models_loaded(self):
+        """Ensure models are loaded (lazy loading)"""
+        if not self._models_initialized:
+            self._initialize_models()
+            self._models_initialized = True
+        
     def _initialize_models(self):
         """Initialize AI models for emotion analysis"""
         try:
+            # Import heavy dependencies only when needed
+            global np
+            if not NUMPY_AVAILABLE:
+                import numpy as np
+            
+            from transformers import pipeline
+            import torch
+            from sentence_transformers import SentenceTransformer
+            
             # Emotion classification model
             self.logger.info("Loading emotion classification model...")
             self.emotion_classifier = pipeline(
@@ -95,6 +114,10 @@ class AIEmotionAnalyzer:
             
             self.logger.info("All emotion analysis models loaded successfully")
             
+        except ImportError as e:
+            self.logger.warning(f"Could not load ML dependencies: {e}. Emotion analysis will be limited.")
+            # Fallback to simpler models or API-based analysis
+            self._initialize_fallback_models()
         except Exception as e:
             self.logger.error(f"Error initializing emotion models: {e}")
             # Fallback to simpler models or API-based analysis
@@ -103,6 +126,10 @@ class AIEmotionAnalyzer:
     def _initialize_fallback_models(self):
         """Initialize fallback models if main models fail"""
         try:
+            # Import dependencies locally
+            from transformers import pipeline
+            from sentence_transformers import SentenceTransformer
+            
             # Use simpler models as fallback
             self.emotion_classifier = pipeline(
                 "text-classification",
@@ -153,6 +180,9 @@ class AIEmotionAnalyzer:
     
     def analyze_message_with_ai(self, message: str, context: Dict[str, Any] = None) -> EmotionAnalysis:
         """Analyze emotion in a message using AI models"""
+        
+        # Ensure models are loaded before analysis
+        self._ensure_models_loaded()
         
         if not message.strip():
             return EmotionAnalysis(

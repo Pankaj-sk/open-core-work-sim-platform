@@ -11,22 +11,77 @@ from datetime import datetime, timedelta
 import os
 import uuid
 import json
+import logging
 
 from .db import get_db
 from .models import Call, CallParticipant, CallMessage, CallEmotion, CodeUpload, CodeReview, EmotionProfile
-from .calls.ai_call_manager import CallManager, CallType
-from .calls.emotion_analyzer import AIEmotionAnalyzer
-from .uploads.code_manager import CodeUploadManager
-from .memory.enhanced_rag import EnhancedRAGManager
-from .calls.audio_call_manager import audio_call_manager
+
+# Lazy imports for heavy modules to improve startup performance
+def get_call_manager():
+    from .calls.ai_call_manager import CallManager
+    return CallManager()
+
+def get_call_type():
+    from .calls.ai_call_manager import CallType
+    return CallType
+
+def get_emotion_analyzer():
+    from .calls.emotion_analyzer import AIEmotionAnalyzer
+    return AIEmotionAnalyzer()
+
+def get_code_manager():
+    from .uploads.code_manager import CodeUploadManager
+    return CodeUploadManager()
+
+def get_rag_manager():
+    from .memory.enhanced_rag import EnhancedRAGManager
+    return EnhancedRAGManager()
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Initialize managers
-call_manager = CallManager()
-emotion_analyzer = AIEmotionAnalyzer()
-code_manager = CodeUploadManager()
-rag_manager = EnhancedRAGManager()  # Add RAG manager
+# Global variables for lazy-loaded managers
+call_manager = None
+emotion_analyzer = None
+code_manager = None
+rag_manager = None
+audio_call_manager_instance = None
+
+def get_call_manager():
+    global call_manager
+    if call_manager is None:
+        from .calls.ai_call_manager import CallManager
+        call_manager = CallManager()
+    return call_manager
+
+def get_emotion_analyzer():
+    global emotion_analyzer
+    if emotion_analyzer is None:
+        from .calls.emotion_analyzer import AIEmotionAnalyzer
+        emotion_analyzer = AIEmotionAnalyzer()
+    return emotion_analyzer
+
+def get_code_manager():
+    global code_manager
+    if code_manager is None:
+        from .uploads.code_manager import CodeUploadManager
+        code_manager = CodeUploadManager()
+    return code_manager
+
+def get_rag_manager():
+    global rag_manager
+    if rag_manager is None:
+        from .memory.enhanced_rag import EnhancedRAGManager
+        rag_manager = EnhancedRAGManager()
+    return rag_manager
+
+def get_audio_call_manager():
+    global audio_call_manager_instance
+    if audio_call_manager_instance is None:
+        from .calls.audio_call_manager import audio_call_manager
+        audio_call_manager_instance = audio_call_manager
+    return audio_call_manager_instance
 
 # Call Management Endpoints
 
@@ -139,16 +194,19 @@ async def end_call(call_id: int, db: Session = Depends(get_db)):
         
         # Analyze call emotions
         if message_data:
-            emotion_analysis = emotion_analyzer.analyze_conversation_flow(
+            analyzer = get_emotion_analyzer()
+            rag = get_rag_manager()
+            
+            emotion_analysis = analyzer.analyze_conversation_flow(
                 message_data, 
                 {"call_type": call.call_type, "project_id": call.project_id}
             )
             
             # Store emotion analysis in RAG memory
-            emotion_analyzer.store_call_analysis_to_rag(
+            analyzer.store_call_analysis_to_rag(
                 call_id, 
                 emotion_analysis, 
-                rag_manager, 
+                rag, 
                 str(call.project_id)
             )
             
@@ -171,10 +229,16 @@ async def send_message(
     message: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """Send a message in a call with AI emotion analysis"""
+    """Send a message in a call with AI emotion analysis and persona responses"""
     try:
         # Analyze message emotions with AI
-        emotion_analysis = await emotion_analyzer.analyze_text_emotions(message)
+        analyzer = get_emotion_analyzer()
+        emotion_analysis = analyzer.analyze_message_with_ai(message)
+        
+        # Convert EmotionAnalysis object to dictionary format
+        emotions_dict = {emotion_analysis.primary_emotion.value: 1.0}
+        for emotion in emotion_analysis.secondary_emotions:
+            emotions_dict[emotion.value] = 0.7
         
         # Create message
         call_message = CallMessage(
@@ -182,26 +246,20 @@ async def send_message(
             sender_type=sender_type,
             sender_id=sender_id,
             sender_name=sender_name,
-            message=message,
-            sentiment=emotion_analysis["sentiment"],
-            emotions=emotion_analysis["emotions"],
-            confidence_score=emotion_analysis["confidence"]
+            message=message
         )
         
         db.add(call_message)
         
         # Record emotions if significant
-        if emotion_analysis["confidence"] > 0.7:
-            for emotion, intensity in emotion_analysis["emotions"].items():
+        if emotion_analysis.confidence > 0.7:
+            for emotion, intensity in emotions_dict.items():
                 if intensity > 0.5:  # Only record significant emotions
                     emotion_record = CallEmotion(
                         call_id=call_id,
                         participant_id=sender_id,
-                        participant_name=sender_name,
-                        emotion=emotion,
-                        intensity=intensity,
-                        confidence=emotion_analysis["confidence"],
-                        trigger_message=message
+                        emotion_type=emotion,
+                        intensity=intensity
                     )
                     db.add(emotion_record)
         
@@ -211,7 +269,8 @@ async def send_message(
         call = db.query(Call).filter(Call.id == call_id).first()
         if call:
             # Store call message in RAG with emotion context
-            rag_manager.add_message(
+            rag = get_rag_manager()
+            rag.add_message(
                 content=f"[{sender_name}]: {message}",
                 project_id=str(call.project_id),
                 conversation_id=f"call_{call_id}",
@@ -220,9 +279,98 @@ async def send_message(
                 message_type="call_message"
             )
         
+        # Generate AI persona responses if this is a user message
+        ai_responses = []
+        if sender_type == "user" and call:
+            try:
+                # Get call participants (personas)
+                participants = db.query(CallParticipant).filter(CallParticipant.call_id == call_id).all()
+                
+                # Generate responses from AI personas
+                from .persona_behavior import PersonaBehaviorManager
+                persona_manager = PersonaBehaviorManager(rag_manager)
+                
+                for participant in participants:
+                    if participant.agent_id:  # This is an AI persona
+                        # Generate emotion-aware response
+                        response_data = persona_manager.generate_emotion_aware_response(
+                            agent_id=participant.agent_id,
+                            message=message,
+                            user_emotion=emotion_analysis.primary_emotion.value,
+                            user_confidence=emotion_analysis.confidence,
+                            project_id=str(call.project_id),
+                            meeting_type=call.call_type or "general"
+                        )
+                        
+                        if "error" not in response_data:
+                            # Generate actual response using the instructions
+                            response_text = await call_manager.generate_agent_response(
+                                agent_id=participant.agent_id,
+                                message=message,
+                                context={
+                                    "emotion_instructions": response_data["instructions"],
+                                    "response_strategy": response_data["response_strategy"],
+                                    "project_id": call.project_id,
+                                    "call_type": call.call_type,
+                                    "user_emotion": emotion_analysis.primary_emotion.value,
+                                    "user_confidence": emotion_analysis.confidence
+                                }
+                            )
+                            
+                            if response_text:
+                                # Create AI response message
+                                ai_message = CallMessage(
+                                    call_id=call_id,
+                                    sender_type="agent",
+                                    sender_id=participant.agent_id,
+                                    sender_name=participant.agent_name,
+                                    message=response_text
+                                )
+                                db.add(ai_message)
+                                
+                                # Record AI emotion
+                                ai_emotion_record = CallEmotion(
+                                    call_id=call_id,
+                                    participant_id=participant.agent_id,
+                                    emotion_type=response_data["persona_emotion"],
+                                    intensity=response_data["persona_confidence"]
+                                )
+                                db.add(ai_emotion_record)
+                                
+                                # Store AI response in RAG
+                                rag_manager.add_message(
+                                    content=f"[{participant.agent_name}]: {response_text}",
+                                    project_id=str(call.project_id),
+                                    conversation_id=f"call_{call_id}",
+                                    sender=participant.agent_name,
+                                    agent_id=participant.agent_id,
+                                    message_type="call_response"
+                                )
+                                
+                                ai_responses.append({
+                                    "agent_id": participant.agent_id,
+                                    "agent_name": participant.agent_name,
+                                    "response": response_text,
+                                    "emotion": response_data["persona_emotion"],
+                                    "confidence": response_data["persona_confidence"]
+                                })
+                
+                db.commit()
+                
+            except Exception as e:
+                logger.error(f"Error generating AI responses: {e}")
+                # Don't fail the whole request if AI responses fail
+        
         return {
             "message": "Message sent successfully",
-            "emotion_analysis": emotion_analysis
+            "emotion_analysis": {
+                "primary_emotion": emotion_analysis.primary_emotion.value,
+                "intensity": emotion_analysis.intensity.value,
+                "confidence": emotion_analysis.confidence,
+                "secondary_emotions": [e.value for e in emotion_analysis.secondary_emotions],
+                "indicators": emotion_analysis.indicators
+            },
+            "ai_responses": ai_responses
         }
         
     except Exception as e:
@@ -235,7 +383,8 @@ async def get_call_emotions(call_id: int, db: Session = Depends(get_db)):
         emotions = db.query(CallEmotion).filter(CallEmotion.call_id == call_id).all()
         
         # Generate emotion summary
-        emotion_summary = emotion_analyzer.generate_emotion_summary(emotions)
+        analyzer = get_emotion_analyzer()
+        emotion_summary = analyzer.generate_emotion_summary(emotions)
         
         return {
             "call_id": call_id,
@@ -289,29 +438,40 @@ async def upload_code(
 ):
     """Upload code file with AI analysis"""
     try:
-        # Save file
-        file_path = await code_manager.save_uploaded_file(file, project_id)
+        # Read file content
+        file_content = await file.read()
         
-        # Analyze code with AI
-        analysis_results = await code_manager.analyze_code(file_path, file.filename)
+        # Upload file using CodeUploadManager
+        file_id = code_manager.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            uploader_id=str(uploader_id),
+            project_id=project_id
+        )
+        
+        if not file_id:
+            raise HTTPException(status_code=400, detail="Failed to upload file")
+        
+        # Get the uploaded file with analysis
+        uploaded_file = code_manager.get_file(file_id)
+        
+        if not uploaded_file:
+            raise HTTPException(status_code=500, detail="File uploaded but not found")
+        
+        # Extract analysis results
+        analysis = uploaded_file.analysis or {}
         
         # Create database record
         code_upload = CodeUpload(
             project_id=project_id,
             uploader_id=uploader_id,
-            filename=f"{uuid.uuid4()}_{file.filename}",
             original_filename=file.filename,
-            file_path=file_path,
-            file_size=file.size,
-            file_type=analysis_results["language_detected"],
-            language_detected=analysis_results["language_detected"],
-            complexity_score=analysis_results["complexity_score"],
-            quality_score=analysis_results["quality_score"],
-            analysis_results=analysis_results["detailed_analysis"],
-            suggestions=analysis_results["suggestions"],
-            potential_issues=analysis_results["issues"],
-            description=description,
-            analyzed_at=datetime.utcnow()
+            file_path=uploaded_file.file_path,
+            file_size=uploaded_file.file_size,
+            file_type=uploaded_file.file_type.value,
+            complexity_score=analysis.get("complexity_score", 0.5),
+            quality_score=analysis.get("quality_score", 0.5),
+            description=description
         )
         
         db.add(code_upload)
@@ -321,10 +481,12 @@ async def upload_code(
         return {
             "message": "Code uploaded and analyzed successfully",
             "upload_id": code_upload.id,
-            "analysis": analysis_results
+            "file_id": file_id,
+            "analysis": analysis
         }
         
     except Exception as e:
+        logger.error(f"Error uploading code: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/code/{upload_id}/review")
@@ -380,13 +542,14 @@ async def get_project_code_uploads(project_id: str, db: Session = Depends(get_db
                 "file_type": upload.file_type,
                 "complexity_score": upload.complexity_score,
                 "quality_score": upload.quality_score,
-                "uploaded_at": upload.uploaded_at.isoformat(),
+                "uploaded_at": upload.created_at.isoformat() if upload.created_at else None,
                 "description": upload.description
             }
             for upload in uploads
         ]
         
     except Exception as e:
+        logger.error(f"Error fetching code uploads: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Emotion Profile Endpoints
@@ -487,16 +650,11 @@ async def get_project_emotion_context(
 ):
     """Get emotional context for a project or participant from RAG memory"""
     try:
+        # For now, return a simple response until the method is implemented
         if participant_id:
-            # Get specific participant's emotional context
-            emotion_context = emotion_analyzer.get_emotion_context_from_rag(
-                participant_id, str(project_id), rag_manager
-            )
+            emotion_context = {"message": f"Emotion context for participant {participant_id} in project {project_id}"}
         else:
-            # Get overall project call history
-            emotion_context = emotion_analyzer.get_call_history_context_from_rag(
-                str(project_id), rag_manager
-            )
+            emotion_context = {"message": f"Overall emotion context for project {project_id}"}
         
         return {
             "project_id": project_id,
@@ -550,7 +708,7 @@ async def start_audio_call(
         participant_ids = [p["id"] for p in participant_list]
         
         # Start audio call
-        result = await audio_call_manager.start_audio_call(
+        result = await get_audio_call_manager().start_audio_call(
             str(call_id), 
             call.project_id, 
             participant_ids
@@ -574,7 +732,7 @@ async def end_audio_call(call_id: int, db: Session = Depends(get_db)):
     """End an audio call and get summary"""
     try:
         # End audio call
-        result = await audio_call_manager.end_audio_call(str(call_id))
+        result = await get_audio_call_manager().end_audio_call(str(call_id))
         
         if result["success"]:
             # Update call in database
@@ -600,7 +758,7 @@ async def end_audio_call(call_id: int, db: Session = Depends(get_db)):
 async def get_audio_call_status(call_id: int):
     """Get the current status of an audio call"""
     try:
-        status = audio_call_manager.get_call_status(str(call_id))
+        status = get_audio_call_manager().get_call_status(str(call_id))
         return status
         
     except Exception as e:
@@ -623,8 +781,8 @@ async def send_audio_message(
         
         # Process the message through the audio call manager
         # This will trigger AI persona responses
-        if str(call_id) in audio_call_manager.active_audio_calls:
-            await audio_call_manager._process_user_speech(str(call_id), message)
+        if str(call_id) in get_audio_call_manager().active_audio_calls:
+            await get_audio_call_manager()._process_user_speech(str(call_id), message)
         
         return {"message": "Text message sent to audio call"}
         

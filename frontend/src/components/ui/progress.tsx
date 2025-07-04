@@ -1,0 +1,60 @@
+import * as React from "react"
+import * as ProgressPrimitive from "@radix-ui/react-progress"
+import { motion } from "framer-motion"
+
+import { cn } from "../../lib/utils"
+
+const Progress = React.forwardRef<
+  React.ElementRef<typeof ProgressPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>
+>(({ className, value, ...props }, ref) => (
+  <ProgressPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative h-2 w-full overflow-hidden rounded-full bg-secondary",
+      className
+    )}
+    {...props}
+  >
+    <ProgressPrimitive.Indicator
+      className="h-full w-full flex-1 bg-primary transition-all"
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </ProgressPrimitive.Root>
+))
+Progress.displayName = ProgressPrimitive.Root.displayName
+
+const AnimatedProgress = React.forwardRef<
+  React.ElementRef<typeof ProgressPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root> & {
+    showValue?: boolean
+    label?: string
+  }
+>(({ className, value, showValue = false, label, ...props }, ref) => (
+  <div className="space-y-2">
+    {(label || showValue) && (
+      <div className="flex justify-between text-sm">
+        {label && <span className="font-medium">{label}</span>}
+        {showValue && <span className="text-muted-foreground">{value}%</span>}
+      </div>
+    )}
+    <ProgressPrimitive.Root
+      ref={ref}
+      className={cn(
+        "relative h-2 w-full overflow-hidden rounded-full bg-secondary",
+        className
+      )}
+      {...props}
+    >
+      <motion.div
+        className="h-full bg-primary rounded-full"
+        initial={{ width: 0 }}
+        animate={{ width: `${value || 0}%` }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+    </ProgressPrimitive.Root>
+  </div>
+))
+AnimatedProgress.displayName = "AnimatedProgress"
+
+export { Progress, AnimatedProgress }

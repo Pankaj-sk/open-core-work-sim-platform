@@ -3,9 +3,14 @@ import json
 import uuid
 from datetime import datetime
 from dataclasses import dataclass
-import numpy as np
-from sentence_transformers import SentenceTransformer
-import faiss
+
+# Lazy imports for heavy dependencies
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 
 
 @dataclass
@@ -15,24 +20,53 @@ class MemoryChunk:
     content: str
     metadata: Dict[str, Any]
     timestamp: datetime
-    embedding: Optional[np.ndarray] = None
+    embedding: Optional[Any] = None  # Changed from np.ndarray to Any for lazy loading
 
 
 class RAGManager:
     """Retrieval-Augmented Generation manager for persistent memory"""
     
     def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
-        """Initialize RAG manager with embedding model"""
-        self.embedding_model = SentenceTransformer(embedding_model)
-        self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+        """Initialize RAG manager with lazy loading"""
+        self.embedding_model_name = embedding_model
+        self.embedding_model = None
+        self.embedding_dim = None
+        self._model_initialized = False
         
-        # FAISS index for vector similarity search
-        self.index = faiss.IndexFlatIP(self.embedding_dim)  # Inner product for cosine similarity
+        # FAISS index (will be initialized when model loads)
+        self.index = None
         
         # Memory storage - optimized with batch operations
         self.memory_chunks: Dict[str, MemoryChunk] = {}
         self.project_memories: Dict[str, List[str]] = {}  # project_id -> list of memory_chunk_ids
         self.agent_memories: Dict[str, List[str]] = {}   # agent_id -> list of memory_chunk_ids
+        
+    def _ensure_model_loaded(self):
+        """Ensure embedding model is loaded (lazy loading)"""
+        if not self._model_initialized:
+            try:
+                # Import heavy dependencies only when needed
+                global np
+                if not NUMPY_AVAILABLE:
+                    import numpy as np
+                
+                from sentence_transformers import SentenceTransformer
+                import faiss
+                
+                self.embedding_model = SentenceTransformer(self.embedding_model_name)
+                self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+                
+                # Initialize FAISS index
+                self.index = faiss.IndexFlatIP(self.embedding_dim)
+                
+                self._model_initialized = True
+                
+            except ImportError as e:
+                print(f"Could not load ML dependencies: {e}. RAG features will be limited.")
+                self._model_initialized = False
+            except Exception as e:
+                print(f"Error loading embedding model: {e}")
+                self._model_initialized = False
         
         # Metadata indexes - optimized for fast lookup
         self.conversation_memories: Dict[str, List[str]] = {}  # conversation_id -> memory_chunk_ids
@@ -56,6 +90,9 @@ class RAGManager:
                    additional_metadata: Optional[Dict[str, Any]] = None) -> str:
         """Add a new memory chunk"""
         
+        # Ensure model is loaded
+        self._ensure_model_loaded()
+        
         # Create memory chunk
         chunk_id = str(uuid.uuid4())
         metadata = {
@@ -72,8 +109,10 @@ class RAGManager:
         if additional_metadata:
             metadata.update(additional_metadata)
         
-        # Generate embedding
-        embedding = self.embedding_model.encode([content])[0]
+        # Generate embedding (only if model is available)
+        embedding = None
+        if self._model_initialized and self.embedding_model is not None:
+            embedding = self.embedding_model.encode([content])[0]
         
         # Create memory chunk
         memory_chunk = MemoryChunk(

@@ -5,6 +5,7 @@ import uuid
 import json
 import asyncio
 import random
+import logging
 from pathlib import Path
 
 from ..models import (
@@ -15,7 +16,12 @@ from ..models import (
 from ..models import ProjectMember
 from ..memory.optimized_storage import optimized_storage
 from .rag_manager import RAGManager
-from ..agents.manager import AgentManager
+# Lazy import for AgentManager to avoid loading heavy ML dependencies
+def get_agent_manager():
+    from ..agents.manager import AgentManager
+    return AgentManager()
+
+logger = logging.getLogger(__name__)
 
 ROLE_HIERARCHY = {
     ProjectRole.INTERN: [ProjectRole.JUNIOR_DEVELOPER, ProjectRole.SENIOR_DEVELOPER],
@@ -81,7 +87,7 @@ class ProjectManager:
         # Try to load existing conversations from a simple file cache
         self._load_conversations_from_cache()
         
-    def set_agent_manager(self, agent_manager: AgentManager):
+    def set_agent_manager(self, agent_manager: Any):  # Changed to Any to avoid import-time dependencies
         """Inject agent manager dependency"""
         self.agent_manager = agent_manager
     

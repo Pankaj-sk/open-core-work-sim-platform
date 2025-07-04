@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, MessageCircle, Star, Briefcase } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { User, MessageCircle, Star, Briefcase, Users, Sparkles, ArrowRight } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
 import { API_BASE_URL } from '../services/api';
 
 interface Agent {
@@ -25,7 +29,6 @@ const AgentsPage: React.FC = () => {
 
   const fetchAgents = async () => {
     try {
-      // Debug logging removed
       const response = await fetch(`${API_BASE_URL}/agents`);
       
       if (!response.ok) {
@@ -33,7 +36,6 @@ const AgentsPage: React.FC = () => {
       }
       
       const data = await response.json();
-      // Debug logging removed
       
       // Transform API data to match our interface
       const transformedAgents = data.agents?.map((agent: any) => ({
@@ -53,28 +55,11 @@ const AgentsPage: React.FC = () => {
     } catch (err) {
       console.error('Error fetching agents:', err);
       setError('Failed to load agents from server. Please check if the backend is running.');
-      setAgents([]); // Don't use fallback data - force API usage
+      setAgents([]);
     } finally {
       setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading agents...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-        <p className="text-red-600">⚠️ {error}</p>
-        <p className="text-sm text-red-500 mt-1">Showing fallback data below.</p>
-      </div>
-    );
-  }
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -86,77 +71,224 @@ const AgentsPage: React.FC = () => {
     ));
   };
 
+  const getAgentEmoji = (role: string) => {
+    const roleEmojis: { [key: string]: string } = {
+      'manager': '👔',
+      'developer': '💻',
+      'client': '💼',
+      'hr': '👥',
+      'intern': '🎓',
+      'qa': '🔍',
+      'designer': '🎨',
+      'analyst': '📊',
+      'unknown role': '👤'
+    };
+    
+    const key = role.toLowerCase().split(' ')[0];
+    return roleEmojis[key] || '👤';
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex justify-center items-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-xl font-medium text-gray-700">Loading agents...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50 to-slate-100 flex justify-center items-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full mx-4"
+        >
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-red-500 text-4xl mb-4">⚠️</div>
+                <h3 className="text-lg font-semibold text-red-800 mb-2">Connection Error</h3>
+                <p className="text-red-600 mb-4">{error}</p>
+                <Button onClick={fetchAgents} className="bg-red-600 hover:bg-red-700">
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Meet Our AI Agents</h1>
-        <p className="text-gray-600">Interact with realistic workplace personas to practice your skills</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Header Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-16"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-6"
+          >
+            <Users className="text-white" size={40} />
+          </motion.div>
+          
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-4">
+            Meet Our AI Agents
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Interact with realistic workplace personas to practice your skills in dynamic, 
+            professional scenarios designed to enhance your communication abilities.
+          </p>
+        </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {agents.map((agent) => (
-          <div key={agent.id} className="card">
-            <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0">
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
-                  <User size={24} className="text-primary-600" />
-                </div>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xl font-semibold text-gray-900">{agent.name}</h3>
-                  <div className="flex items-center space-x-1">
+        {/* Agents Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-16">
+          {agents.map((agent, index) => (
+            <motion.div
+              key={agent.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+            >
+              <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="text-center pb-4">
+                  <div className="relative mx-auto mb-4">
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center text-3xl border-4 border-white shadow-lg"
+                    >
+                      {getAgentEmoji(agent.role || '')}
+                    </motion.div>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.5 + index * 0.1 }}
+                      className="absolute -top-1 -right-1 w-6 h-6 bg-green-400 rounded-full border-2 border-white"
+                    />
+                  </div>
+                  
+                  <CardTitle className="text-xl font-bold text-gray-900 mb-2">
+                    {agent.name}
+                  </CardTitle>
+                  
+                  <div className="flex items-center justify-center space-x-2 mb-3">
+                    <Briefcase size={16} className="text-gray-400" />
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                      {agent.role}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-center space-x-1">
                     {renderStars(agent.rating || 0)}
-                    <span className="text-sm text-gray-600 ml-1">({agent.rating || 'N/A'})</span>
+                    <span className="text-sm text-gray-600 ml-2">({agent.rating || 'N/A'})</span>
                   </div>
-                </div>
+                </CardHeader>
                 
-                <div className="flex items-center space-x-2 mb-3">
-                  <Briefcase size={16} className="text-gray-400" />
-                  <span className="text-sm font-medium text-primary-600">{agent.role}</span>
-                  <span className="text-sm text-gray-500">• {agent.experience}</span>
-                </div>
-                
-                <p className="text-gray-600 mb-4">{agent.personality}</p>
-                
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Background</h4>
-                  <p className="text-sm text-gray-600">{agent.background}</p>
-                </div>
-                
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Skills</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {agent.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full"
-                      >
-                        {skill}
-                      </span>
-                    ))}
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                      <Sparkles size={14} className="mr-2 text-purple-500" />
+                      Personality
+                    </h4>
+                    <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+                      {agent.personality}
+                    </p>
                   </div>
-                </div>
-                
-                <button className="btn-primary w-full">
-                  <MessageCircle size={16} className="mr-2" />
-                  Start Conversation
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Experience</h4>
+                    <p className="text-sm text-gray-600">{agent.experience}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Skills</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {agent.skills.slice(0, 4).map((skill, skillIndex) => (
+                        <Badge
+                          key={skillIndex}
+                          variant="outline"
+                          className="text-xs bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                      {agent.skills.length > 4 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{agent.skills.length - 4} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="pt-4">
+                    <Button 
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 group"
+                      size="lg"
+                    >
+                      <MessageCircle size={18} className="mr-2" />
+                      Start Conversation
+                      <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
 
-      <div className="card text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to Practice?</h2>
-        <p className="text-gray-600 mb-6">
-          Choose an agent and start a conversation to practice your workplace skills in realistic scenarios.
-        </p>
-        <button className="btn-primary text-lg px-8 py-3">
-          Start Simulation
-        </button>
+        {/* Call to Action */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+        >
+          <Card className="bg-gradient-to-r from-blue-600 to-purple-600 border-0 text-white">
+            <CardContent className="text-center py-12">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 1, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-6"
+              >
+                <Sparkles className="text-white" size={32} />
+              </motion.div>
+              
+              <h2 className="text-3xl font-bold mb-4">Ready to Practice?</h2>
+              <p className="text-blue-100 text-lg mb-8 max-w-2xl mx-auto">
+                Choose an agent and start a conversation to practice your workplace skills 
+                in realistic scenarios. Build confidence through interactive simulations.
+              </p>
+              
+              <Button 
+                size="lg"
+                className="bg-white text-blue-600 hover:bg-blue-50 text-lg px-8 py-3 group"
+              >
+                <Users size={20} className="mr-2" />
+                Start Simulation
+                <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   );

@@ -925,3 +925,194 @@ WORKPLACE REALISM:
         except Exception as e:
             logger.error(f"Error checking for first interaction: {e}")
             return True  # Default to introducing on error
+    
+    def generate_emotion_aware_response(self, agent_id: str, message: str, user_emotion: str, 
+                                      user_confidence: float, project_id: str, meeting_type: str = "general") -> Dict:
+        """Generate persona response that adapts to user's emotion and confidence level"""
+        
+        if agent_id not in self.personas:
+            return {"error": f"Unknown agent: {agent_id}"}
+        
+        persona = self.personas[agent_id]
+        
+        # Get emotional response strategy based on persona traits and user emotion
+        response_strategy = self._get_emotional_response_strategy(persona, user_emotion, user_confidence)
+        
+        # Get memory context for continuity
+        memory_context = self.get_comprehensive_persona_memory(agent_id, project_id)
+        
+        # Generate emotion-aware instructions
+        emotion_instructions = f"""You are {persona['name']}, responding to a message with the following emotional context:
+
+USER MESSAGE: {message}
+USER EMOTION: {user_emotion} (confidence: {user_confidence * 100:.0f}%)
+
+EMOTIONAL RESPONSE STRATEGY:
+- Tone to adopt: {response_strategy['tone']}
+- Energy level: {response_strategy['energy']}
+- Support level: {response_strategy['support_level']}
+- Response approach: {response_strategy['approach']}
+
+YOUR PERSONALITY TRAITS: {', '.join(persona['base_personality']['traits'])}
+
+SPECIFIC GUIDANCE FOR THIS EMOTION:
+{response_strategy['specific_guidance']}
+
+MEETING CONTEXT: {meeting_type}
+
+Remember to:
+- Stay true to your personality while adapting to their emotional state
+- Be authentic and natural in your response
+- Reference relevant project context when appropriate
+- Show empathy and understanding when needed
+- Maintain professional boundaries while being supportive"""
+
+        # Determine the persona's emotional state in response
+        persona_emotion = self._determine_persona_emotion_response(persona, user_emotion, user_confidence)
+        
+        return {
+            "instructions": emotion_instructions,
+            "response_strategy": response_strategy,
+            "persona_emotion": persona_emotion,
+            "persona_confidence": self._calculate_persona_confidence(persona, user_emotion, user_confidence),
+            "memory_context": memory_context
+        }
+    
+    def _get_emotional_response_strategy(self, persona: Dict, user_emotion: str, confidence: float) -> Dict:
+        """Determine how this persona should respond to the user's emotional state"""
+        
+        # Base strategies for different emotions
+        emotion_strategies = {
+            "excited": {
+                "tone": "enthusiastic" if "supportive" in persona["base_personality"]["traits"] else "positive",
+                "energy": "high",
+                "support_level": "encouraging",
+                "approach": "match_enthusiasm",
+                "specific_guidance": "Match their excitement while staying professional. Show genuine enthusiasm for their ideas."
+            },
+            "frustrated": {
+                "tone": "calm_supportive",
+                "energy": "steady",
+                "support_level": "high",
+                "approach": "problem_solving",
+                "specific_guidance": "Acknowledge their frustration, offer practical help, and focus on solutions."
+            },
+            "confused": {
+                "tone": "patient_helpful",
+                "energy": "calm",
+                "support_level": "educational",
+                "approach": "clarifying",
+                "specific_guidance": "Provide clear explanations, break down complex topics, and offer additional support."
+            },
+            "confident": {
+                "tone": "collaborative",
+                "energy": "medium_high",
+                "support_level": "peer_level",
+                "approach": "engaging",
+                "specific_guidance": "Engage as equals, build on their confidence, and explore ideas together."
+            },
+            "nervous": {
+                "tone": "reassuring",
+                "energy": "calm",
+                "support_level": "very_high",
+                "approach": "encouraging",
+                "specific_guidance": "Be extra supportive, provide reassurance, and help build their confidence."
+            },
+            "calm": {
+                "tone": "professional",
+                "energy": "medium",
+                "support_level": "standard",
+                "approach": "balanced",
+                "specific_guidance": "Maintain a balanced, professional approach while being approachable."
+            },
+            "angry": {
+                "tone": "calm_diplomatic",
+                "energy": "low",
+                "support_level": "de_escalating",
+                "approach": "defusing",
+                "specific_guidance": "Stay calm, acknowledge their concerns, and work toward resolution."
+            }
+        }
+        
+        # Get base strategy
+        strategy = emotion_strategies.get(user_emotion, emotion_strategies["calm"])
+        
+        # Adjust based on persona traits
+        if "empathetic" in persona["base_personality"]["traits"]:
+            strategy["support_level"] = "very_high"
+        elif "direct" in persona["base_personality"]["traits"]:
+            strategy["approach"] = "direct_helpful"
+        elif "analytical" in persona["base_personality"]["traits"]:
+            strategy["approach"] = "logical_structured"
+        
+        # Adjust based on confidence level
+        if confidence < 0.5:
+            strategy["support_level"] = "high"
+            strategy["tone"] = "reassuring"
+        elif confidence > 0.8:
+            strategy["energy"] = "high"
+        
+        return strategy
+    
+    def _determine_persona_emotion_response(self, persona: Dict, user_emotion: str, confidence: float) -> str:
+        """Determine what emotion the persona should display in response"""
+        
+        # Empathetic personas mirror emotions more
+        if "empathetic" in persona["base_personality"]["traits"]:
+            if user_emotion in ["excited", "happy"]:
+                return "excited"
+            elif user_emotion in ["frustrated", "angry"]:
+                return "concerned"
+            elif user_emotion in ["nervous", "confused"]:
+                return "supportive"
+        
+        # Supportive personas stay positive and helpful
+        elif "supportive" in persona["base_personality"]["traits"]:
+            if user_emotion in ["frustrated", "nervous", "confused"]:
+                return "supportive"
+            elif user_emotion in ["excited", "confident"]:
+                return "enthusiastic"
+            else:
+                return "encouraging"
+        
+        # Technical personas stay focused but helpful
+        elif "technical" in persona["base_personality"]["traits"]:
+            if user_emotion in ["confused", "frustrated"]:
+                return "helpful"
+            elif user_emotion in ["excited", "confident"]:
+                return "engaged"
+            else:
+                return "focused"
+        
+        # Creative personas are more expressive
+        elif "creative" in persona["base_personality"]["traits"]:
+            if user_emotion in ["excited", "happy"]:
+                return "inspired"
+            elif user_emotion in ["frustrated", "confused"]:
+                return "thoughtful"
+            else:
+                return "creative"
+        
+        # Default: stay balanced but responsive
+        return "professional"
+    
+    def _calculate_persona_confidence(self, persona: Dict, user_emotion: str, user_confidence: float) -> float:
+        """Calculate the persona's confidence level based on user state and their own traits"""
+        
+        base_confidence = 0.8  # Most personas are confident in their roles
+        
+        # Adjust based on persona traits
+        if "confident" in persona["base_personality"]["traits"]:
+            base_confidence = 0.9
+        elif "supportive" in persona["base_personality"]["traits"]:
+            base_confidence = 0.85
+        
+        # Adjust based on user emotion and confidence
+        if user_emotion in ["frustrated", "angry"] and user_confidence < 0.5:
+            # Persona becomes more careful/measured
+            base_confidence *= 0.9
+        elif user_emotion in ["excited", "confident"] and user_confidence > 0.8:
+            # Persona feeds off positive energy
+            base_confidence = min(0.95, base_confidence * 1.1)
+        
+        return round(base_confidence, 2)

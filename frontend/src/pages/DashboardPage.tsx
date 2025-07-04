@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
-import { Plus, Users, Calendar, TrendingUp, Briefcase, Settings } from 'lucide-react';
+import { Plus, Users, Calendar, TrendingUp, Briefcase, Settings, Filter, SortAsc } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
 
 interface Project {
   id: string;
@@ -99,7 +105,6 @@ const DashboardPage: React.FC = () => {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form data
     if (!createForm.name || createForm.name.trim().length < 3) {
       alert('Project name must be at least 3 characters long');
       return;
@@ -143,221 +148,113 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const getPhaseColor = (phase: string) => {
-    const colors = {
-      planning: 'bg-blue-100 text-blue-800',
-      development: 'bg-green-100 text-green-800',
-      testing: 'bg-yellow-100 text-yellow-800',
-      deployment: 'bg-purple-100 text-purple-800',
-      maintenance: 'bg-gray-100 text-gray-800',
-      completed: 'bg-green-100 text-green-800'
+  const getPhaseVariant = (phase: string): "default" | "secondary" | "destructive" | "outline" => {
+    const variants = {
+      planning: 'outline' as const,
+      development: 'default' as const,
+      testing: 'secondary' as const,
+      deployment: 'default' as const,
+      maintenance: 'secondary' as const,
+      completed: 'default' as const
     };
-    return colors[phase as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return variants[phase as keyof typeof variants] || 'outline';
   };
 
+  const statsData = [
+    {
+      title: 'Active Projects',
+      value: projects.filter(p => p.is_active).length,
+      icon: Briefcase,
+      color: 'blue'
+    },
+    {
+      title: 'Team Members',
+      value: projects.reduce((sum, p) => sum + p.team_size, 0),
+      icon: Users,
+      color: 'green'
+    },
+    {
+      title: 'This Month',
+      value: projects.filter(p => {
+        const created = new Date(p.created_at);
+        const now = new Date();
+        return created.getMonth() === now.getMonth() && 
+               created.getFullYear() === now.getFullYear();
+      }).length,
+      icon: Calendar,
+      color: 'purple'
+    },
+    {
+      title: 'Completed',
+      value: projects.filter(p => p.current_phase === 'completed').length,
+      icon: TrendingUp,
+      color: 'orange'
+    }
+  ];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-center"
+      >
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
             Welcome back, {user?.full_name}!
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 mt-2 text-lg">
             Manage your workplace simulation projects and track your progress
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={20} />
-          New Project
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Briefcase className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Projects</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {projects.filter(p => p.is_active).length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <Users className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Team Members</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {projects.reduce((sum, p) => sum + p.team_size, 0)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {projects.filter(p => {
-                  const created = new Date(p.created_at);
-                  const now = new Date();
-                  return created.getMonth() === now.getMonth() && 
-                         created.getFullYear() === now.getFullYear();
-                }).length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-orange-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {projects.filter(p => p.current_phase === 'completed').length}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Projects */}
-      <div className="card">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Your Projects</h2>
-          <div className="flex gap-2">
-            <button className="btn-secondary text-sm">Filter</button>
-            <button className="btn-secondary text-sm">Sort</button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">Loading projects...</p>
-          </div>
-        ) : projects.length === 0 ? (
-          <div className="text-center py-12">
-            <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
-            <p className="text-gray-600 mb-4">
-              Create your first project to start practicing workplace scenarios
-            </p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="btn-primary"
-            >
-              Create Your First Project
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <div
-                key={project.id}
-                className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {project.name}
-                  </h3>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPhaseColor(project.current_phase)}`}>
-                    {project.current_phase}
-                  </span>
-                </div>
-                
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                  {project.description}
-                </p>
-                
-                <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                  <span>{project.team_size} team members</span>
-                  <span>{new Date(project.created_at).toLocaleDateString()}</span>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Link
-                    to={`/projects/${project.id}`}
-                    className="btn-primary text-sm flex-1 text-center"
-                  >
-                    Open Project
-                  </Link>
-                  <button className="btn-secondary text-sm">
-                    <Settings size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Create Project Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Create New Project
-            </h2>
+        
+        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New Project</DialogTitle>
+              <DialogDescription>
+                Set up a new workplace simulation project to practice your skills.
+              </DialogDescription>
+            </DialogHeader>
             
             <form onSubmit={handleCreateProject} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Project Name
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Project Name</label>
+                <Input
                   required
                   minLength={3}
                   maxLength={200}
                   value={createForm.name}
                   onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   placeholder="Enter project name"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Description</label>
                 <textarea
                   value={createForm.description}
                   onChange={(e) => setCreateForm({...createForm, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                   rows={3}
                   placeholder="Describe your project"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Role
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Your Role</label>
                 <select
                   required
                   value={createForm.userRole}
                   onChange={(e) => setCreateForm({...createForm, userRole: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">Select your role</option>
                   {PROJECT_ROLES.map((role) => (
@@ -367,65 +264,212 @@ const DashboardPage: React.FC = () => {
                   ))}
                 </select>
                 {createForm.userRole && (
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-muted-foreground">
                     {PROJECT_ROLES.find(r => r.value === createForm.userRole)?.description}
                   </p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Team Size
-                </label>
-                <select
-                  value={createForm.teamSize}
-                  onChange={(e) => setCreateForm({...createForm, teamSize: parseInt(e.target.value)})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value={3}>3 members</option>
-                  <option value={5}>5 members</option>
-                  <option value={7}>7 members</option>
-                  <option value={10}>10 members</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Team Size</label>
+                  <select
+                    value={createForm.teamSize}
+                    onChange={(e) => setCreateForm({...createForm, teamSize: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value={3}>3 members</option>
+                    <option value={5}>5 members</option>
+                    <option value={7}>7 members</option>
+                    <option value={10}>10 members</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Project Type
-                </label>
-                <select
-                  value={createForm.projectType}
-                  onChange={(e) => setCreateForm({...createForm, projectType: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="web_development">Web Development</option>
-                  <option value="mobile_app">Mobile App</option>
-                  <option value="data_science">Data Science</option>
-                  <option value="design_project">Design Project</option>
-                </select>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Project Type</label>
+                  <select
+                    value={createForm.projectType}
+                    onChange={(e) => setCreateForm({...createForm, projectType: e.target.value})}
+                    className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="web_development">Web Development</option>
+                    <option value="mobile_app">Mobile App</option>
+                    <option value="data_science">Data Science</option>
+                    <option value="design_project">Design Project</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setShowCreateModal(false)}
-                  className="btn-secondary flex-1"
                   disabled={creating}
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="btn-primary flex-1"
                   disabled={creating}
+                  className="flex-1"
                 >
                   {creating ? 'Creating...' : 'Create Project'}
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        </Dialog>
+      </motion.div>
+
+      {/* Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+      >
+        {statsData.map((stat, index) => (
+          <motion.div
+            key={stat.title}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 + index * 0.05 }}
+          >
+            <Card className="hover:shadow-lg transition-all duration-200 border-0 bg-gradient-to-br from-white to-gray-50">
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <div className={`p-3 rounded-xl bg-gradient-to-r ${
+                    stat.color === 'blue' ? 'from-blue-500 to-blue-600' :
+                    stat.color === 'green' ? 'from-green-500 to-green-600' :
+                    stat.color === 'purple' ? 'from-purple-500 to-purple-600' :
+                    'from-orange-500 to-orange-600'
+                  }`}>
+                    <stat.icon className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                    <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Projects */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <Card className="border-0 shadow-lg">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="text-2xl">Your Projects</CardTitle>
+                <CardDescription>Manage and track your workplace simulations</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm">
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filter
+                </Button>
+                <Button variant="outline" size="sm">
+                  <SortAsc className="w-4 h-4 mr-2" />
+                  Sort
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-12">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto"
+                />
+                <p className="text-muted-foreground mt-4">Loading projects...</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-16"
+              >
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Briefcase className="h-10 w-10 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">No projects yet</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Create your first project to start practicing workplace scenarios and building your professional skills.
+                </p>
+                <Button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Project
+                </Button>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.map((project, index) => (
+                  <motion.div
+                    key={project.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 + index * 0.05 }}
+                  >
+                    <Card className="hover:shadow-lg transition-all duration-200 group border-0 bg-gradient-to-br from-white to-gray-50">
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <h3 className="text-lg font-semibold text-foreground group-hover:text-blue-600 transition-colors">
+                            {project.name}
+                          </h3>
+                          <Badge variant={getPhaseVariant(project.current_phase)}>
+                            {project.current_phase}
+                          </Badge>
+                        </div>
+                        
+                        <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+                          {project.description}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-6">
+                          <span className="flex items-center">
+                            <Users className="w-4 h-4 mr-1" />
+                            {project.team_size} members
+                          </span>
+                          <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Link
+                            to={`/projects/${project.id}`}
+                            className="flex-1"
+                          >
+                            <Button className="w-full" size="sm">
+                              Open Project
+                            </Button>
+                          </Link>
+                          <Button variant="outline" size="sm">
+                            <Settings className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 };

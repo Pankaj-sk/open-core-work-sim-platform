@@ -4,8 +4,12 @@ import uuid
 from datetime import datetime
 from ..config import settings
 from ..persona_behavior import PersonaBehaviorManager
-from ..memory.enhanced_rag import EnhancedRAGManager
 import logging
+
+# Lazy import for heavy RAG manager
+def get_rag_manager():
+    from ..memory.enhanced_rag import EnhancedRAGManager
+    return EnhancedRAGManager()
 
 
 class AgentPersona(BaseModel):
@@ -26,7 +30,7 @@ class AgentManager:
         self.logger = logging.getLogger(__name__)
         
         # Enhanced RAG memory system
-        self.enhanced_rag = EnhancedRAGManager()
+        self.enhanced_rag = None  # Lazy-loaded
         
         # Memory optimization settings
         self.enable_context_optimization = True
@@ -268,11 +272,11 @@ Remember: You are a real person in this workplace, not an AI. Respond naturally 
         """Generate a response using custom model API with enhanced memory and rate limiting"""
         try:
             # Wait for rate limit before making API call
-            if hasattr(self, 'enhanced_rag'):
+            if self.enhanced_rag is not None:
                 self.enhanced_rag.wait_for_rate_limit()
             
             # Get conversation history for context
-            if hasattr(self, 'enhanced_rag') and self.enable_context_optimization:
+            if self.enhanced_rag is not None and self.enable_context_optimization:
                 # Use enhanced context generation
                 conversation_context = self.enhanced_rag.generate_enhanced_context(
                     project_id="default",  # You can pass actual project_id here
@@ -291,7 +295,7 @@ Remember: You are a real person in this workplace, not an AI. Respond naturally 
             response = self._call_custom_model(system_prompt, message)
             
             # Store message in enhanced RAG if available
-            if hasattr(self, 'enhanced_rag'):
+            if self.enhanced_rag is not None:
                 try:
                     # Store user message
                     self.enhanced_rag.add_message(
@@ -884,7 +888,7 @@ CRITICAL FORMATTING:
         base_prompt = self._build_enhanced_system_prompt(agent, conversation_context)
         
         # Add emotional context if available
-        if project_id and target_participant and hasattr(self, 'enhanced_rag'):
+        if project_id and target_participant and self.enhanced_rag is not None:
             try:
                 # Import here to avoid circular imports
                 from ..calls.emotion_analyzer import AIEmotionAnalyzer
@@ -958,8 +962,8 @@ Be naturally responsive to the person's emotional state and communication patter
             })
             
             # Store interaction in RAG if available
-            if hasattr(self, 'enhanced_rag') and project_id:
-                self.enhanced_rag.add_message(
+            if self.enhanced_rag is not None and project_id:
+                self._get_enhanced_rag().add_message(
                     content=f"User: {message}",
                     project_id=project_id,
                     conversation_id=f"agent_{agent_id}",
@@ -967,7 +971,7 @@ Be naturally responsive to the person's emotional state and communication patter
                     message_type="agent_interaction"
                 )
                 
-                self.enhanced_rag.add_message(
+                self._get_enhanced_rag().add_message(
                     content=f"{agent.name}: {response}",
                     project_id=project_id,
                     conversation_id=f"agent_{agent_id}",
@@ -982,3 +986,9 @@ Be naturally responsive to the person's emotional state and communication patter
             self.logger.error(f"Error in emotion-aware chat: {e}")
             # Fallback to regular chat
             return self.chat_with_agent(agent_id, message)
+    
+    def _get_enhanced_rag(self):
+        """Get the enhanced RAG manager lazily"""
+        if self.enhanced_rag is None:
+            self.enhanced_rag = get_rag_manager()
+        return self.enhanced_rag

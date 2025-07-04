@@ -11,7 +11,9 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectPage from './pages/ProjectPage';
 import ConversationPage from './pages/ConversationPage';
+import CallPage from './pages/CallPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './components/ui/toast-provider';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -38,6 +40,7 @@ function AppContent() {
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectPage /></ProtectedRoute>} />
           <Route path="/projects/:projectId/conversations/:conversationId" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
+          <Route path="/projects/:projectId/calls/:callId" element={<ProtectedRoute><CallPage /></ProtectedRoute>} />
           <Route path="/simulation" element={<ProtectedRoute><SimulationPage /></ProtectedRoute>} />
           <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
         </Routes>
@@ -51,6 +54,7 @@ function App() {
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <AppContent />
+        <ToastProvider />
       </AuthProvider>
     </Router>
   );
