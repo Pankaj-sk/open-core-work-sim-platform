@@ -115,12 +115,14 @@ const ProjectPage: React.FC = () => {
   // Calls & Code States
   const [calls, setCalls] = useState<any[]>([]);
   const [codeUploads, setCodeUploads] = useState<any[]>([]);
-  const [activeCall, setActiveCall] = useState<any | null>(null);
-  const [showScheduleForm, setShowScheduleForm] = useState<boolean>(false);
-  const [showUploadForm, setShowUploadForm] = useState<boolean>(false);
   const [availableAgents, setAvailableAgents] = useState<any[]>([]);
+  const [activeCall, setActiveCall] = useState<any | null>(null);
   const [callMessage, setCallMessage] = useState<string>('');
   const [callMessages, setCallMessages] = useState<any[]>([]);
+  
+  // Missing form states
+  const [showScheduleForm, setShowScheduleForm] = useState<boolean>(false);
+  const [showUploadForm, setShowUploadForm] = useState<boolean>(false);
   const [newCall, setNewCall] = useState({
     title: '',
     description: '',
@@ -133,6 +135,12 @@ const ProjectPage: React.FC = () => {
     description: '',
     reviewType: 'general'
   });
+  
+  // Audio call states
+  const [isAudioCallActive, setIsAudioCallActive] = useState<boolean>(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [audioSupported, setAudioSupported] = useState<boolean>(false);
+  const [micPermission, setMicPermission] = useState<boolean>(false);
 
   // Function definitions
   const getQuickStartTime = (minutes: number) => {
@@ -351,9 +359,13 @@ const ProjectPage: React.FC = () => {
   // Calls & Code Functions
   const fetchCalls = useCallback(async () => {
     try {
-      const response = await fetch(`/api/calls/project/${projectId}`);
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/project/${projectId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      setCalls(data);
+      // Ensure data is always an array
+      setCalls(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching calls:', error);
       // Add some mock data for testing
@@ -380,9 +392,13 @@ const ProjectPage: React.FC = () => {
 
   const fetchCodeUploads = useCallback(async () => {
     try {
-      const response = await fetch(`/api/code/project/${projectId}`);
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/code/project/${projectId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      setCodeUploads(data);
+      // Ensure data is always an array
+      setCodeUploads(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching code uploads:', error);
       // Add some mock data for testing
@@ -411,7 +427,10 @@ const ProjectPage: React.FC = () => {
 
   const fetchAvailableAgents = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/agents');
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/agents`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setAvailableAgents(data.agents || []);
     } catch (error) {
@@ -421,6 +440,16 @@ const ProjectPage: React.FC = () => {
 
   const scheduleCall = async () => {
     try {
+      // Convert participant IDs to participant objects
+      const participantObjects = newCall.participants.map(participantId => {
+        const agent = availableAgents.find(a => a.id === participantId);
+        return {
+          type: 'ai',
+          id: participantId,
+          name: agent?.name || 'Unknown Agent'
+        };
+      });
+
       const formData = new FormData();
       formData.append('call_type', newCall.callType);
       formData.append('title', newCall.title);
@@ -428,9 +457,9 @@ const ProjectPage: React.FC = () => {
       formData.append('project_id', projectId!);
       formData.append('creator_id', '1');
       formData.append('scheduled_at', newCall.scheduledAt);
-      formData.append('participants', JSON.stringify(newCall.participants));
+      formData.append('participants', JSON.stringify(participantObjects));
 
-      const response = await fetch('/api/calls/schedule', {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/schedule`, {
         method: 'POST',
         body: formData
       });
@@ -439,6 +468,9 @@ const ProjectPage: React.FC = () => {
         setShowScheduleForm(false);
         setNewCall({ title: '', description: '', callType: '1on1', scheduledAt: '', participants: [] });
         fetchCalls();
+      } else {
+        const errorData = await response.text();
+        console.error('Error scheduling call:', response.status, errorData);
       }
     } catch (error) {
       console.error('Error scheduling call:', error);
@@ -447,7 +479,7 @@ const ProjectPage: React.FC = () => {
 
   const startCall = async (callId: number) => {
     try {
-      const response = await fetch(`/api/calls/${callId}/start`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/${callId}/start`, {
         method: 'POST'
       });
       
@@ -474,7 +506,7 @@ const ProjectPage: React.FC = () => {
 
   const endCall = async (callId: number) => {
     try {
-      const response = await fetch(`/api/calls/${callId}/end`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/${callId}/end`, {
         method: 'POST'
       });
       
@@ -507,7 +539,7 @@ const ProjectPage: React.FC = () => {
       formData.append('sender_name', 'User');
       formData.append('message', message);
 
-      const response = await fetch(`/api/calls/${callId}/message`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/${callId}/message`, {
         method: 'POST',
         body: formData
       });
@@ -534,7 +566,7 @@ const ProjectPage: React.FC = () => {
       formData.append('uploader_id', '1');
       formData.append('description', uploadForm.description);
 
-      const response = await fetch('/api/code/upload', {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/code/upload`, {
         method: 'POST',
         body: formData
       });
@@ -545,6 +577,9 @@ const ProjectPage: React.FC = () => {
         setShowUploadForm(false);
         setUploadForm({ file: null, description: '', reviewType: 'general' });
         fetchCodeUploads();
+      } else {
+        const errorData = await response.text();
+        console.error('Error uploading code:', response.status, errorData);
       }
     } catch (error) {
       console.error('Error uploading code:', error);
@@ -553,9 +588,13 @@ const ProjectPage: React.FC = () => {
 
   const fetchCallMessages = async (callId: number) => {
     try {
-      const response = await fetch(`/api/calls/${callId}/messages`);
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/calls/${callId}/messages`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
-      setCallMessages(data);
+      // Ensure data is always an array
+      setCallMessages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching call messages:', error);
     }
@@ -565,7 +604,7 @@ const ProjectPage: React.FC = () => {
     if (!message.trim()) return;
 
     try {
-      const response = await fetch(`/api/v1/agents/${agentId}/chat`, {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api/v1'}/agents/${agentId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
@@ -1032,7 +1071,7 @@ const ProjectPage: React.FC = () => {
                             )}
                           </div>
                         ))
-                      )}
+                      }
                     </div>
                   </div>
                 </div>
@@ -1143,7 +1182,7 @@ const ProjectPage: React.FC = () => {
                         </div>
                       </div>
                     ))
-                  )}
+                  }
                 </div>
 
                 {/* Message Input */}
@@ -1742,22 +1781,6 @@ const ProjectPage: React.FC = () => {
                           if (e.target.checked) {
                             setNewCall({...newCall, participants: [...newCall.participants, agent.id]});
                           } else {
-                            setNewCall({...newCall, participants: newCall.participants.filter(p => p !== agent.id)});
-                          }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="text-sm">
-                        <strong>{agent.name}</strong> - {agent.role}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowScheduleForm(false)}
                   className="btn-secondary flex-1"
                 >
                   Cancel

@@ -32,6 +32,13 @@ langchain-anthropic==0.0.1
 google-generativeai==0.3.2
 langchain-google-genai==0.0.5
 
+# Audio processing for voice calls with AI personas
+SpeechRecognition==3.10.0
+pyttsx3==2.90
+pyaudio==0.2.11
+pydub==0.25.1
+wave==0.0.2
+
 # Additional utilities
 aiofiles==23.2.1
 jinja2==3.1.2
@@ -49,4 +56,3 @@ gunicorn==21.2.0  # WSGI server for production
 uvloop==0.17.0    # High performance event loop
 email-validator==2.0.0  # Email validation
 slowapi==0.1.9    # Rate limiting
-python-multipart==0.0.6  # File upload support

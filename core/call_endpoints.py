@@ -18,6 +18,7 @@ from .calls.ai_call_manager import CallManager, CallType
 from .calls.emotion_analyzer import AIEmotionAnalyzer
 from .uploads.code_manager import CodeUploadManager
 from .memory.enhanced_rag import EnhancedRAGManager
+from .calls.audio_call_manager import audio_call_manager
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ async def schedule_call(
     call_type: str = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    project_id: int = Form(...),
+    project_id: str = Form(...),
     creator_id: int = Form(...),
     scheduled_at: str = Form(...),
     participants: str = Form(...),  # JSON string of participant IDs
@@ -51,7 +52,6 @@ async def schedule_call(
             title=title,
             description=description,
             project_id=project_id,
-            creator_id=creator_id,
             scheduled_at=datetime.fromisoformat(scheduled_at),
             status="scheduled"
         )
@@ -60,7 +60,16 @@ async def schedule_call(
         db.commit()
         db.refresh(call)
         
-        # Add participants
+        # Add creator as a participant
+        creator_participant = CallParticipant(
+            call_id=call.id,
+            participant_type="user",
+            participant_id=str(creator_id),
+            participant_name="User"
+        )
+        db.add(creator_participant)
+        
+        # Add other participants
         for participant in participant_list:
             participant_obj = CallParticipant(
                 call_id=call.id,
@@ -144,7 +153,6 @@ async def end_call(call_id: int, db: Session = Depends(get_db)):
             )
             
             # Update call with emotion summary
-            call.overall_sentiment = emotion_analysis.get("summary", {}).get("overall_mood", "neutral")
             call.dominant_emotion = emotion_analysis.get("summary", {}).get("dominant_emotion", "neutral")
         
         db.commit()
@@ -248,7 +256,7 @@ async def get_call_emotions(call_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/calls/project/{project_id}")
-async def get_project_calls(project_id: int, db: Session = Depends(get_db)):
+async def get_project_calls(project_id: str, db: Session = Depends(get_db)):
     """Get all calls for a project"""
     try:
         calls = db.query(Call).filter(Call.project_id == project_id).all()
@@ -260,9 +268,8 @@ async def get_project_calls(project_id: int, db: Session = Depends(get_db)):
                 "title": call.title,
                 "scheduled_at": call.scheduled_at.isoformat(),
                 "status": call.status,
-                "duration_minutes": call.duration_minutes,
-                "overall_sentiment": call.overall_sentiment,
-                "dominant_emotion": call.dominant_emotion
+                "duration_minutes": call.duration_minutes or 0,
+                "dominant_emotion": call.dominant_emotion or "neutral"
             }
             for call in calls
         ]
@@ -275,7 +282,7 @@ async def get_project_calls(project_id: int, db: Session = Depends(get_db)):
 @router.post("/code/upload")
 async def upload_code(
     file: UploadFile = File(...),
-    project_id: int = Form(...),
+    project_id: str = Form(...),
     uploader_id: int = Form(...),
     description: str = Form(""),
     db: Session = Depends(get_db)
@@ -361,7 +368,7 @@ async def create_code_review(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/code/project/{project_id}")
-async def get_project_code_uploads(project_id: int, db: Session = Depends(get_db)):
+async def get_project_code_uploads(project_id: str, db: Session = Depends(get_db)):
     """Get all code uploads for a project"""
     try:
         uploads = db.query(CodeUpload).filter(CodeUpload.project_id == project_id).all()
@@ -519,6 +526,107 @@ async def get_agent_enhanced_context(
             "project_id": project_id,
             "enhanced_context": enhanced_context
         }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Audio Call Endpoints
+
+@router.post("/calls/{call_id}/start-audio")
+async def start_audio_call(
+    call_id: int,
+    participants: str = Form(...),  # JSON string of participant IDs
+    db: Session = Depends(get_db)
+):
+    """Start an audio call with AI personas"""
+    try:
+        # Get call info from database
+        call = db.query(Call).filter(Call.id == call_id).first()
+        if not call:
+            raise HTTPException(status_code=404, detail="Call not found")
+        
+        # Parse participants
+        participant_list = json.loads(participants)
+        participant_ids = [p["id"] for p in participant_list]
+        
+        # Start audio call
+        result = await audio_call_manager.start_audio_call(
+            str(call_id), 
+            call.project_id, 
+            participant_ids
+        )
+        
+        if result["success"]:
+            # Update call status
+            call.status = "active"
+            call.started_at = datetime.utcnow()
+            db.commit()
+            
+            return {"message": "Audio call started successfully", "call_id": call_id}
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to start audio call"))
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/calls/{call_id}/end-audio")
+async def end_audio_call(call_id: int, db: Session = Depends(get_db)):
+    """End an audio call and get summary"""
+    try:
+        # End audio call
+        result = await audio_call_manager.end_audio_call(str(call_id))
+        
+        if result["success"]:
+            # Update call in database
+            call = db.query(Call).filter(Call.id == call_id).first()
+            if call:
+                call.status = "completed"
+                call.ended_at = datetime.utcnow()
+                call.duration_minutes = result.get("duration_minutes", 0)
+                db.commit()
+            
+            return {
+                "message": "Audio call ended successfully",
+                "summary": result.get("summary", ""),
+                "duration_minutes": result.get("duration_minutes", 0)
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to end audio call"))
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/calls/{call_id}/audio-status")
+async def get_audio_call_status(call_id: int):
+    """Get the current status of an audio call"""
+    try:
+        status = audio_call_manager.get_call_status(str(call_id))
+        return status
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/calls/{call_id}/send-audio-message")
+async def send_audio_message(
+    call_id: int,
+    message: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Send a text message during audio call (fallback)"""
+    try:
+        # This endpoint allows sending text messages during audio calls
+        # as a fallback when speech recognition isn't working
+        
+        call = db.query(Call).filter(Call.id == call_id).first()
+        if not call:
+            raise HTTPException(status_code=404, detail="Call not found")
+        
+        # Process the message through the audio call manager
+        # This will trigger AI persona responses
+        if str(call_id) in audio_call_manager.active_audio_calls:
+            await audio_call_manager._process_user_speech(str(call_id), message)
+        
+        return {"message": "Text message sent to audio call"}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

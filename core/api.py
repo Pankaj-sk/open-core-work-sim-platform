@@ -1852,4 +1852,4 @@ async def debug_testing_mode():
     }
 
 # Include new routers
-app.include_router(call_router, prefix="/api", tags=["calls"])
+app.include_router(call_router, prefix="/api/v1", tags=["calls"])
