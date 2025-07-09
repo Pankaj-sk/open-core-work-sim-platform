@@ -1,0 +1,15 @@
+{
+  "demo-project-1": [
+    {
+      "id": "48e9473c-b669-4a29-b043-f7bbfacb538d",
+      "project_id": "demo-project-1",
+      "started_by": "test_user",
+      "conversation_type": "casual_chat",
+      "title": "hi",
+      "participants": [],
+      "messages": [],
+      "status": "active",
+      "start_time": "2025-07-09T07:06:17.539022"
+    }
+  ]
+}

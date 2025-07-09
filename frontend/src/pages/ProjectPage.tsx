@@ -1,34 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+// 📄 PAGE: ProjectPage.tsx - Single project workspace for MVP
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { apiService } from '../services/api';
 import { 
   Users, 
   MessageSquare, 
   Calendar, 
-  Clock, 
   Send, 
   Plus,
   X,
   User,
   Brain,
-  History,
-  Video,
-  Code,
-  Upload,
-  Phone,
   ArrowLeft,
   Activity,
-  TrendingUp,
   CheckCircle,
-  Settings,
-  Search,
-  FileText,
-  Trash2,
-  UserCheck,
-  Timer
+  Target
 } from 'lucide-react';
-import { parseISO, differenceInCalendarDays } from 'date-fns';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
@@ -36,8 +24,7 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Separator } from '../components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { Progress } from '../components/ui/progress';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
 
 interface ProjectDetails {
   project: {
@@ -46,7 +33,7 @@ interface ProjectDetails {
     description: string;
     created_at: string;
     current_phase: string;
-    settings: any;
+    settings?: any;
   };
   team_members: Array<{
     id: number;
@@ -102,34 +89,13 @@ const CONVERSATION_TYPES = [
   { value: 'team_meeting', label: 'Team Meeting' },
   { value: 'code_review', label: 'Code Review' },
   { value: 'one_on_one', label: 'One-on-One' },
-  { value: 'status_update', label: 'Status Update' },
-  { value: 'casual_chat', label: 'Casual Chat' }
-];
-
-const CALL_TYPES = [
-  { value: 'team_meeting', label: 'Team Meeting' },
-  { value: 'daily_standup', label: 'Daily Standup' },
-  { value: 'one_on_one', label: 'One-on-One' },
-  { value: 'code_review', label: 'Code Review' },
   { value: 'project_planning', label: 'Project Planning' },
-  { value: 'retrospective', label: 'Retrospective' },
-  { value: 'demo', label: 'Demo/Presentation' }
-];
-
-const CODE_CATEGORIES = [
-  { value: 'general', label: 'General Code' },
-  { value: 'frontend', label: 'Frontend' },
-  { value: 'backend', label: 'Backend' },
-  { value: 'database', label: 'Database' },
-  { value: 'config', label: 'Configuration' },
-  { value: 'docs', label: 'Documentation' },
-  { value: 'tests', label: 'Tests' }
+  { value: 'casual_chat', label: 'Casual Chat' }
 ];
 
 const ProjectPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -146,66 +112,111 @@ const ProjectPage: React.FC = () => {
     description: ''
   });
   const [dashboardData, setDashboardData] = useState<any>(null);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [showScheduleCall, setShowScheduleCall] = useState(false);
-  const [showUploadCode, setShowUploadCode] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [callForm, setCallForm] = useState({
-    title: '',
-    type: 'team_meeting',
-    date: '',
-    time: '',
-    duration: 30,
-    participants: [] as string[],
-    agenda: ''
-  });
-  const [uploadForm, setUploadForm] = useState({
-    files: [] as File[],
-    description: '',
-    category: 'general'
-  });
 
-  const loadProject = useCallback(async () => {
-    if (!projectId) return;
-    
-    try {
-      setLoading(true);
-      const response = await apiService.getProjectDetails(projectId);
-      if (response.success && response.data) {
-        setProject(response.data);
-      } else {
-        console.error('Failed to load project');
-        setProject(null);
+  // Load project details
+  useEffect(() => {
+    const loadProject = async () => {
+      if (!projectId) return;
+      
+      try {
+        setLoading(true);
+        const response = await apiService.getProjectDetails(projectId);
+        if (response.success && response.data) {
+          setProject(response.data);
+          loadConversations();
+          loadDashboardData(response.data);
+        } else {
+          // Fallback to localStorage for demo mode
+          console.log('API not available, using localStorage fallback');
+          loadProjectFromLocalStorage();
+        }
+      } catch (error) {
+        console.error('Error loading project from API:', error);
+        // Fallback to localStorage for demo mode
+        loadProjectFromLocalStorage();
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading project:', error);
-      setProject(null);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    const loadProjectFromLocalStorage = () => {
+      const projectContext = localStorage.getItem('currentProjectContext');
+      const skillData = JSON.parse(localStorage.getItem('userSkillData') || '{}');
+      
+      if (projectContext) {
+        const context = JSON.parse(projectContext);
+        const fallbackProject: ProjectDetails = {
+          project: {
+            id: projectId || 'demo-project-1',
+            name: context.title || 'Career Development Project',
+            description: context.description || 'Practice workplace skills through AI-powered simulation',
+            created_at: context.startedAt || new Date().toISOString(),
+            current_phase: 'active',
+            settings: {}
+          },
+          team_members: [
+            {
+              id: 1,
+              name: 'You',
+              role: skillData.role || 'Team Member',
+              is_user: true,
+              experience_level: skillData.experience || 'intermediate',
+              reporting_to: null
+            },
+            {
+              id: 2,
+              name: 'AI Project Manager',
+              role: 'Project Manager',
+              is_user: false,
+              experience_level: 'senior',
+              reporting_to: null
+            },
+            {
+              id: 3,
+              name: 'AI Team Member',
+              role: 'Collaborator',
+              is_user: false,
+              experience_level: 'intermediate',
+              reporting_to: 'AI Project Manager'
+            }
+          ],
+          user_role: skillData.role || 'team_member'
+        };
+        
+        setProject(fallbackProject);
+        loadDashboardData(fallbackProject);
+      }
+    };
+
+    loadProject();
   }, [projectId]);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = async () => {
     if (!projectId) return;
     
     try {
       const response = await apiService.getProjectConversations(projectId);
       if (response.success && response.data) {
         setConversations(response.data.conversations || []);
+      } else {
+        // For demo mode, start with empty conversations
+        setConversations([]);
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
+      // For demo mode, start with empty conversations
+      setConversations([]);
     }
-  }, [projectId]);
+  };
 
-  const loadDashboardData = useCallback(async () => {
-    if (!projectId || !project) return;
+  const loadDashboardData = async (projectData: ProjectDetails) => {
+    if (!projectId || !projectData) return;
     
     try {
       setDashboardLoading(true);
       const [dashboardResponse, tasksResponse] = await Promise.all([
         apiService.getDashboardData(projectId),
-        apiService.getRoleTasks(projectId, project.user_role)
+        apiService.getRoleTasks(projectId, projectData.user_role)
       ]);
       
       if (dashboardResponse.success && tasksResponse.success) {
@@ -214,46 +225,127 @@ const ProjectPage: React.FC = () => {
           tasks: tasksResponse.data
         });
       } else {
+        // Fallback dashboard data when API is not configured
         setDashboardData({
           dashboard: {
-            tasks: [],
-            feedback: "Please configure AI API keys in .env file to get personalized dashboard content.",
-            suggestions: [],
+            tasks: [
+              'Familiarize yourself with the project requirements',
+              'Set up your development environment',
+              'Review team member roles and responsibilities'
+            ],
+            feedback: "Welcome to your project workspace! Start by introducing yourself to your AI team members through a conversation.",
+            suggestions: [
+              'Start with a team introduction meeting',
+              'Schedule a project planning session',
+              'Set up your daily standup routine'
+            ],
             deadlines: [],
-            responsibilities: []
+            responsibilities: [
+              `As a ${projectData.user_role}, you'll be responsible for contributing to the project goals`,
+              'Participate actively in team discussions',
+              'Collaborate effectively with your AI team members'
+            ]
           },
           tasks: []
         });
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
+      // Fallback data
       setDashboardData({
         dashboard: {
-          tasks: [],
-          feedback: "Error loading dashboard content. Please check your API configuration.",
-          suggestions: ["Add GOOGLE_API_KEY to .env file for AI-powered insights"],
+          tasks: ['Welcome to your project! Start a conversation to begin.'],
+          feedback: "Get started by chatting with your AI team members.",
+          suggestions: ['Try starting a team meeting conversation'],
           deadlines: [],
-          responsibilities: []
+          responsibilities: [`Practice your ${projectData.user_role} skills in this simulated environment`]
         },
         tasks: []
       });
     } finally {
       setDashboardLoading(false);
     }
-  }, [projectId, project]);
+  };
 
-  useEffect(() => {
-    if (projectId) {
-      loadProject();
-      loadConversations();
+  const handleCreateConversation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newConversationForm.title || !newConversationForm.type) {
+      return;
     }
-  }, [projectId, loadProject, loadConversations]);
 
-  useEffect(() => {
-    if (project && projectId) {
-      loadDashboardData();
+    try {
+      setSending(true);
+      const response = await apiService.startConversation(
+        projectId!,
+        newConversationForm.type,
+        newConversationForm.title,
+        [] // participants - empty for now, will be populated by backend
+      );
+
+      if (response.success) {
+        setShowNewConversation(false);
+        setNewConversationForm({ title: '', type: '', description: '' });
+        loadConversations();
+        
+        if (response.data?.conversation_id) {
+          loadConversationDetails(response.data.conversation_id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+    } finally {
+      setSending(false);
     }
-  }, [project, projectId, loadDashboardData]);
+  };
+
+  const loadConversationDetails = async (conversationId: string) => {
+    try {
+      setConversationLoading(true);
+      const response = await apiService.getConversationDetails(projectId!, conversationId);
+      if (response.success && response.data) {
+        setCurrentConversation(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load conversation details:', error);
+    } finally {
+      setConversationLoading(false);
+    }
+  };
+
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !currentConversation) return;
+
+    try {
+      setSending(true);
+      const response = await apiService.sendMessage(
+        projectId!,
+        currentConversation.conversation.id,
+        messageInput.trim()
+      );
+
+      if (response.success) {
+        setMessageInput('');
+        // Reload conversation to show new messages
+        loadConversationDetails(currentConversation.conversation.id);
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const getPhaseVariant = (phase: string) => {
+    switch (phase) {
+      case 'planning': return 'secondary';
+      case 'development': return 'default';
+      case 'testing': return 'outline';
+      case 'completed': return 'destructive';
+      default: return 'secondary';
+    }
+  };
 
   const groupConversationsByDay = (conversations: Conversation[]) => {
     const grouped: { [key: string]: Conversation[] } = {};
@@ -282,239 +374,10 @@ const ProjectPage: React.FC = () => {
     return grouped;
   };
 
-  const handleCreateConversation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newConversationForm.title || !newConversationForm.type) {
-      return;
-    }
-
-    try {
-      setSending(true);
-      const response = await apiService.startConversation(
-        projectId!,
-        newConversationForm.type,
-        newConversationForm.title,
-        [] // participants - empty for now, will be populated by backend
-      );
-
-      if (response.success) {
-        setShowNewConversation(false);
-        setNewConversationForm({ title: '', type: '', description: '' });
-        loadConversations();
-        
-        if (response.data?.conversation_id) {
-          navigate(`/projects/${projectId}/conversations/${response.data.conversation_id}`);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleScheduleCall = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!callForm.title || !callForm.date || !callForm.time) {
-      return;
-    }
-
-    try {
-      setSending(true);
-      
-      // Create a call ID based on timestamp
-      const callId = `call-${Date.now()}`;
-      const callDateTime = new Date(`${callForm.date}T${callForm.time}`);
-      
-      // Store call details in localStorage for the call page to access
-      const callDetails = {
-        id: callId,
-        projectId: projectId,
-        title: callForm.title,
-        type: callForm.type,
-        scheduledTime: callDateTime.toISOString(),
-        duration: callForm.duration,
-        participants: callForm.participants,
-        agenda: callForm.agenda,
-        createdAt: new Date().toISOString()
-      };
-      
-      localStorage.setItem(`call-${callId}`, JSON.stringify(callDetails));
-      
-      // Also create a conversation for the scheduled call
-      const response = await apiService.startConversation(
-        projectId!,
-        callForm.type,
-        `📞 ${callForm.title} (Scheduled for ${callDateTime.toLocaleString()})`,
-        [] // participants will be populated by backend
-      );
-
-      setShowScheduleCall(false);
-      setCallForm({
-        title: '',
-        type: 'team_meeting',
-        date: '',
-        time: '',
-        duration: 30,
-        participants: [],
-        agenda: ''
-      });
-      
-      // Navigate directly to the call page
-      navigate(`/projects/${projectId}/calls/${callId}`);
-      
-    } catch (error) {
-      console.error('Failed to schedule call:', error);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleFileUpload = () => {
-    setShowUploadCode(true);
-  };
-
-  const handleCodeUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (uploadForm.files.length === 0) {
-      return;
-    }
-
-    setUploading(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const file of uploadForm.files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('uploader_id', '1'); // Replace with actual user ID
-        formData.append('project_id', projectId!);
-        formData.append('description', uploadForm.description);
-        formData.append('category', uploadForm.category);
-
-        const response = await fetch('/api/v1/uploads/file', {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-
-        if (response.ok) {
-          successCount++;
-        } else {
-          errorCount++;
-        }
-      }
-
-      if (successCount > 0) {
-        console.log(`Successfully uploaded ${successCount} files`);
-      }
-      if (errorCount > 0) {
-        console.error(`Failed to upload ${errorCount} files`);
-      }
-
-      setShowUploadCode(false);
-      setUploadForm({
-        files: [],
-        description: '',
-        category: 'general'
-      });
-      
-      // Refresh project data to show uploaded files
-      if (successCount > 0) {
-        loadProject();
-      }
-    } catch (error) {
-      console.error('Error uploading files:', error);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      setUploadForm(prev => ({
-        ...prev,
-        files: Array.from(files)
-      }));
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setUploadForm(prev => ({
-      ...prev,
-      files: prev.files.filter((_, i) => i !== index)
-    }));
-  };
-
-  const toggleParticipant = (memberId: string) => {
-    setCallForm(prev => ({
-      ...prev,
-      participants: prev.participants.includes(memberId)
-        ? prev.participants.filter(id => id !== memberId)
-        : [...prev.participants, memberId]
-    }));
-  };
-
-  const handleStartInstantCall = () => {
-    // Create instant call
-    const callId = `instant-${Date.now()}`;
-    const callDetails = {
-      id: callId,
-      projectId: projectId,
-      title: 'Instant Team Call',
-      type: 'team_meeting',
-      scheduledTime: new Date().toISOString(),
-      duration: 30,
-      participants: project?.team_members.map(m => m.id.toString()) || [],
-      agenda: '',
-      createdAt: new Date().toISOString(),
-      isInstant: true
-    };
-    
-    localStorage.setItem(`call-${callId}`, JSON.stringify(callDetails));
-    
-    // Navigate directly to call page
-    navigate(`/projects/${projectId}/calls/${callId}`);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'ended':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPhaseVariant = (phase: string): "default" | "secondary" | "destructive" | "outline" => {
-    const variants = {
-      planning: 'outline' as const,
-      development: 'default' as const,
-      testing: 'secondary' as const,
-      deployment: 'default' as const,
-      maintenance: 'secondary' as const,
-      completed: 'default' as const
-    };
-    return variants[phase as keyof typeof variants] || 'outline';
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full"
-        />
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -544,656 +407,384 @@ const ProjectPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Project Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Project Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50">
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Target className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                        {project.project.name}
+                      </h1>
+                      <Badge variant={getPhaseVariant(project.project.current_phase)} className="mt-1">
+                        {project.project.current_phase}
+                      </Badge>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                      {project.project.name}
-                    </h1>
-                    <Badge variant={getPhaseVariant(project.project.current_phase)} className="mt-1">
-                      {project.project.current_phase}
-                    </Badge>
+                  <p className="text-muted-foreground text-lg mb-4">{project.project.description}</p>
+                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      {project.team_members?.length || 0} members
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Created {new Date(project.project.created_at).toLocaleDateString()}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Your role: <Badge variant="secondary">{project.user_role}</Badge>
+                    </span>
                   </div>
                 </div>
-                <p className="text-muted-foreground text-lg mb-4">{project.project.description}</p>
-                <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    {project.team_members.length} members
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Created {new Date(project.project.created_at).toLocaleDateString()}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Your role: <Badge variant="secondary">{project.user_role}</Badge>
-                  </span>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/dashboard')}
+                  className="ml-6"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Dashboard
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/dashboard')}
-                className="ml-6"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      {/* Main Content */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-      >
-        {/* Left Panel */}
-        <div className="lg:col-span-1">
-          <Card className="border-0 shadow-lg">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-5 p-1 m-4 mb-0">
-                <TabsTrigger value="conversations" className="text-xs">Chat</TabsTrigger>
-                <TabsTrigger value="team" className="text-xs">Team</TabsTrigger>
-                <TabsTrigger value="memory" className="text-xs">Memory</TabsTrigger>
-                <TabsTrigger value="calls" className="text-xs">Calls</TabsTrigger>
-                <TabsTrigger value="code" className="text-xs">Code</TabsTrigger>
-              </TabsList>
+        {/* Main Content */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        >
+          {/* Left Panel - Navigation & Info */}
+          <div className="lg:col-span-1">
+            <Card className="border-0 shadow-lg">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="conversations">Chat</TabsTrigger>
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="conversations" className="p-6 pt-4">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Conversations</h3>
-                    <Button
-                      size="sm"
-                      onClick={() => setShowNewConversation(true)}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
+                <TabsContent value="conversations" className="p-6 pt-4">
                   <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-semibold">Conversations</h3>
+                      <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600">
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Start New Conversation</DialogTitle>
+                            <DialogDescription>
+                              Begin a new conversation with your AI team members
+                            </DialogDescription>
+                          </DialogHeader>
+                          <form onSubmit={handleCreateConversation} className="space-y-4">
+                            <div>
+                              <label className="text-sm font-medium">Title</label>
+                              <Input
+                                required
+                                value={newConversationForm.title}
+                                onChange={(e) => setNewConversationForm({...newConversationForm, title: e.target.value})}
+                                placeholder="e.g., Morning standup, Project planning"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Type</label>
+                              <select
+                                required
+                                value={newConversationForm.type}
+                                onChange={(e) => setNewConversationForm({...newConversationForm, type: e.target.value})}
+                                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                              >
+                                <option value="">Select conversation type</option>
+                                {CONVERSATION_TYPES.map(type => (
+                                  <option key={type.value} value={type.value}>
+                                    {type.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                              <Button type="button" variant="outline" onClick={() => setShowNewConversation(false)} disabled={sending}>
+                                Cancel
+                              </Button>
+                              <Button type="submit" disabled={sending}>
+                                {sending ? 'Starting...' : 'Start Conversation'}
+                              </Button>
+                            </div>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                    
                     {conversations.length === 0 ? (
                       <div className="text-center py-8">
                         <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                         <p className="text-muted-foreground">No conversations yet</p>
+                        <p className="text-sm text-muted-foreground">Start your first chat with your AI team!</p>
                       </div>
                     ) : (
-                      Object.entries(groupConversationsByDay(conversations)).map(([day, convs]) => (
-                        <div key={day}>
-                          <h4 className="font-semibold text-primary mb-2">{day}</h4>
-                          <div className="space-y-2">
-                            {convs.map((conv) => (
-                              <Card
-                                key={conv.id}
-                                className="cursor-pointer hover:shadow-md transition-all duration-200 border-0 bg-gradient-to-br from-white to-gray-50"
-                                onClick={() => navigate(`/projects/${projectId}/conversations/${conv.id}`)}
-                              >
-                                <CardContent className="p-4">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <h5 className="font-medium text-foreground">{conv.title}</h5>
-                                    <Badge variant="outline" className={getStatusColor(conv.status)}>
-                                      {conv.status === 'active' ? 'Ongoing' : conv.status === 'ended' ? 'Finished' : conv.status}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mb-2">{conv.conversation_type}</p>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span>{conv.message_count} messages</span>
-                                    <span>•</span>
-                                    <span>{conv.participant_count} participants</span>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
+                      <div className="space-y-3">
+                        {Object.entries(groupConversationsByDay(conversations)).map(([day, dayConversations]) => (
+                          <div key={day}>
+                            <h4 className="text-sm font-medium text-muted-foreground mb-2">{day}</h4>
+                            <div className="space-y-2">
+                              {dayConversations.map((conv) => (
+                                <Card 
+                                  key={conv.id} 
+                                  className={`cursor-pointer transition-all border-l-4 ${
+                                    currentConversation?.conversation.id === conv.id 
+                                      ? 'border-l-blue-500 bg-blue-50' 
+                                      : 'border-l-transparent hover:bg-gray-50'
+                                  }`}
+                                  onClick={() => loadConversationDetails(conv.id)}
+                                >
+                                  <CardContent className="p-3">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm truncate">{conv.title}</p>
+                                        <p className="text-xs text-muted-foreground capitalize">{conv.conversation_type.replace('_', ' ')}</p>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <span>{conv.message_count} msgs</span>
+                                        <Badge variant="secondary" className="text-xs">
+                                          {conv.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="team" className="p-6 pt-4">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Team Members</h3>
-                  <div className="space-y-3">
-                    {project.team_members.map((member) => (
-                      <Card key={member.id} className="border-0 bg-gradient-to-br from-white to-gray-50">
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                                {member.name.split(' ').map(n => n[0]).join('')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1">
-                              <p className="font-medium text-foreground">{member.name}</p>
-                              <p className="text-sm text-muted-foreground">{member.role}</p>
+                <TabsContent value="overview" className="p-6 pt-4">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Team Members</h3>
+                    <div className="space-y-3">
+                      {(project.team_members || []).map((member, index) => (
+                        <Card key={member.id || index} className="border-0 bg-gradient-to-br from-gray-50 to-gray-100">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-10 h-10">
+                                <AvatarFallback className={member.is_user ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}>
+                                  {member.name?.substring(0, 2).toUpperCase() || '??'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-sm">{member.name}</p>
+                                  {member.is_user && <Badge variant="secondary" className="text-xs">You</Badge>}
+                                  {!member.is_user && <Badge variant="outline" className="text-xs">AI</Badge>}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{member.role}</p>
+                                {member.experience_level && (
+                                  <p className="text-xs text-muted-foreground capitalize">{member.experience_level} level</p>
+                                )}
+                              </div>
                             </div>
-                            {member.is_user && (
-                              <Badge variant="secondary">You</Badge>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
+              </Tabs>
+            </Card>
+          </div>
 
-              <TabsContent value="memory" className="p-6 pt-4">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Project Memory</h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                    <Brain className="w-4 h-4" />
-                    <span>AI agents remember all conversations and interactions</span>
+          {/* Center Panel - Main Content */}
+          <div className="lg:col-span-2">
+            {currentConversation ? (
+              <Card className="border-0 shadow-lg h-[600px] flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{currentConversation.conversation.title}</CardTitle>
+                      <CardDescription className="capitalize">
+                        {currentConversation.conversation.conversation_type.replace('_', ' ')} • {currentConversation.participants.length} participants
+                      </CardDescription>
+                    </div>
+                    <Badge variant={currentConversation.conversation.status === 'active' ? 'default' : 'secondary'}>
+                      {currentConversation.conversation.status}
+                    </Badge>
                   </div>
-                  
-                  <Card className="border-0 bg-gradient-to-br from-blue-50 to-purple-50">
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <label className="block text-sm font-medium">Search Project Memory</label>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search conversations, decisions, or topics..."
-                            className="pl-10"
-                          />
+                </CardHeader>
+                
+                <Separator />
+                
+                <CardContent className="flex-1 flex flex-col p-0">
+                  {/* Messages Area */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {conversationLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : currentConversation.messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full text-center">
+                        <div>
+                          <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                          <p className="text-muted-foreground">Conversation started!</p>
+                          <p className="text-sm text-muted-foreground">Send a message to begin chatting with your AI team.</p>
                         </div>
-                        <Button variant="outline" className="w-full">
-                          <Brain className="w-4 h-4 mr-2" />
-                          Search Memory
-                        </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="calls" className="p-6 pt-4">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Voice Calls</h3>
-                    <Button 
-                      size="sm" 
-                      className="bg-gradient-to-r from-green-600 to-green-700"
-                      onClick={handleStartInstantCall}
-                    >
-                      <Phone className="w-4 h-4" />
-                    </Button>
+                    ) : (
+                      currentConversation.messages.map((message, index) => {
+                        const isAI = message.sender_id !== 'user' && !message.sender_name.toLowerCase().includes('you');
+                        return (
+                          <div key={message.id || index} className={`flex ${isAI ? 'justify-start' : 'justify-end'}`}>
+                            <div className={`max-w-[80%] p-3 rounded-lg ${
+                              isAI 
+                                ? 'bg-gray-100 text-gray-900' 
+                                : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium">{message.sender_name}</span>
+                                <span className="text-xs opacity-70">
+                                  {new Date(message.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-sm">{message.content}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                   
-                  <div className="grid grid-cols-1 gap-3">
-                    <Card className="border-0 bg-gradient-to-br from-green-50 to-emerald-50">
-                      <CardContent className="p-4 text-center">
-                        <Phone className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                        <h4 className="font-semibold text-foreground mb-2">Start Instant Call</h4>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Jump into a call with your team right now
-                        </p>
-                        <Button 
-                          className="w-full bg-green-600 hover:bg-green-700"
-                          onClick={handleStartInstantCall}
-                        >
-                          <Phone className="w-4 h-4 mr-2" />
-                          Start Now
-                        </Button>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-0 bg-gradient-to-br from-blue-50 to-indigo-50">
-                      <CardContent className="p-4 text-center">
-                        <Calendar className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-                        <h4 className="font-semibold text-foreground mb-2">Schedule Call</h4>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Plan a meeting for a specific date and time
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          className="w-full"
-                          onClick={() => setShowScheduleCall(true)}
-                        >
-                          <Calendar className="w-4 h-4 mr-2" />
-                          Schedule Call
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="code" className="p-6 pt-4">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Code Files</h3>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setShowUploadCode(true)}
-                    >
-                      <Upload className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
-                  <Card className="border-0 bg-gradient-to-br from-purple-50 to-indigo-50">
-                    <CardContent className="p-4 text-center">
-                      <Code className="w-12 h-12 text-purple-600 mx-auto mb-3" />
-                      <p className="text-muted-foreground">No code files uploaded</p>
-                      <Button 
-                        variant="outline" 
-                        className="mt-3"
-                        onClick={() => setShowUploadCode(true)}
-                      >
-                        Upload Code
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </Card>
-        </div>
-
-        {/* Right Panel - Dashboard */}
-        <div className="lg:col-span-2">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Project Dashboard
-              </CardTitle>
-              <CardDescription>
-                Your personalized workspace insights and tasks
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dashboardLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* AI Feedback */}
-                  {dashboardData?.dashboard?.feedback && (
-                    <Card className="border-0 bg-gradient-to-br from-blue-50 to-indigo-50">
-                      <CardContent className="p-4">
-                        <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                          <Brain className="w-4 h-4" />
-                          AI Insights
-                        </h4>
-                        <p className="text-muted-foreground">{dashboardData.dashboard.feedback}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Tasks */}
-                  {dashboardData?.tasks && dashboardData.tasks.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        Your Tasks
-                      </h4>
-                      <div className="space-y-2">
-                        {dashboardData.tasks.map((task: any, index: number) => (
-                          <Card key={index} className="border-0 bg-gradient-to-br from-white to-gray-50">
-                            <CardContent className="p-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                                <span className="text-sm text-foreground">{task}</span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                  {/* Message Input */}
+                  {currentConversation.conversation.status === 'active' && (
+                    <>
+                      <Separator />
+                      <div className="p-4">
+                        <form onSubmit={sendMessage} className="flex gap-2">
+                          <Input
+                            value={messageInput}
+                            onChange={(e) => setMessageInput(e.target.value)}
+                            placeholder="Type your message..."
+                            disabled={sending}
+                            className="flex-1"
+                          />
+                          <Button type="submit" disabled={sending || !messageInput.trim()}>
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </form>
                       </div>
-                    </div>
+                    </>
                   )}
-
-                  {/* Suggestions */}
-                  {dashboardData?.dashboard?.suggestions && dashboardData.dashboard.suggestions.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4" />
-                        Suggestions
-                      </h4>
-                      <div className="space-y-2">
-                        {dashboardData.dashboard.suggestions.map((suggestion: string, index: number) => (
-                          <Card key={index} className="border-0 bg-gradient-to-br from-green-50 to-emerald-50">
-                            <CardContent className="p-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                                <span className="text-sm text-foreground">{suggestion}</span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </motion.div>
-
-      {/* New Conversation Modal */}
-      <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Start New Conversation</DialogTitle>
-            <DialogDescription>
-              Create a new conversation with your team members.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleCreateConversation} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Title</label>
-              <Input
-                required
-                value={newConversationForm.title}
-                onChange={(e) => setNewConversationForm({...newConversationForm, title: e.target.value})}
-                placeholder="Enter conversation title"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Type</label>
-              <select
-                required
-                value={newConversationForm.type}
-                onChange={(e) => setNewConversationForm({...newConversationForm, type: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Select conversation type</option>
-                {CONVERSATION_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Description (Optional)</label>
-              <textarea
-                value={newConversationForm.description}
-                onChange={(e) => setNewConversationForm({...newConversationForm, description: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                rows={3}
-                placeholder="Describe the conversation topic"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowNewConversation(false)}
-                disabled={sending}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={sending}
-                className="flex-1"
-              >
-                {sending ? 'Creating...' : 'Start Conversation'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Schedule Call Modal */}
-      <Dialog open={showScheduleCall} onOpenChange={setShowScheduleCall}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Schedule Call</DialogTitle>
-            <DialogDescription>
-              Schedule a voice call with your team members.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleScheduleCall} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Call Title</label>
-              <Input
-                required
-                value={callForm.title}
-                onChange={(e) => setCallForm({...callForm, title: e.target.value})}
-                placeholder="Enter call title"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Call Type</label>
-              <select
-                required
-                value={callForm.type}
-                onChange={(e) => setCallForm({...callForm, type: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {CALL_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Date</label>
-                <Input
-                  type="date"
-                  required
-                  value={callForm.date}
-                  onChange={(e) => setCallForm({...callForm, date: e.target.value})}
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Time</label>
-                <Input
-                  type="time"
-                  required
-                  value={callForm.time}
-                  onChange={(e) => setCallForm({...callForm, time: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Duration (minutes)</label>
-              <select
-                value={callForm.duration}
-                onChange={(e) => setCallForm({...callForm, duration: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value={15}>15 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={45}>45 minutes</option>
-                <option value={60}>1 hour</option>
-                <option value={90}>1.5 hours</option>
-                <option value={120}>2 hours</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Participants</label>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {project?.team_members.map((member) => (
-                  <div key={member.id} className="flex items-center gap-3 p-2 border rounded-md">
-                    <input
-                      type="checkbox"
-                      checked={callForm.participants.includes(member.id.toString())}
-                      onChange={() => toggleParticipant(member.id.toString())}
-                      className="rounded"
-                    />
-                    <div className="flex items-center gap-2 flex-1">
-                      <User className="w-4 h-4" />
-                      <span className="text-sm">{member.name}</span>
-                      <Badge variant="outline" className="text-xs">{member.role}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Agenda (Optional)</label>
-              <textarea
-                value={callForm.agenda}
-                onChange={(e) => setCallForm({...callForm, agenda: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                rows={3}
-                placeholder="Meeting agenda or topics to discuss"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowScheduleCall(false)}
-                disabled={sending}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={sending}
-                className="flex-1"
-              >
-                {sending ? 'Scheduling...' : 'Schedule Call'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Upload Code Modal */}
-      <Dialog open={showUploadCode} onOpenChange={setShowUploadCode}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Upload Code Files</DialogTitle>
-            <DialogDescription>
-              Share code files with your team for review and collaboration.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleCodeUpload} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Select Files</label>
-              <Input
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                accept=".js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.h,.css,.html,.json,.xml,.yaml,.yml,.md,.txt"
-                className="cursor-pointer"
-              />
-              <p className="text-xs text-muted-foreground">
-                Supported: JS, TS, Python, Java, C/C++, CSS, HTML, JSON, Markdown, Text files
-              </p>
-            </div>
-
-            {uploadForm.files.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Selected Files</label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {uploadForm.files.map((file, index) => (
-                    <div key={index} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm flex-1">{file.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {(file.size / 1024).toFixed(1)} KB
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(index)}
-                        className="h-auto p-1 text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-0 shadow-lg h-[600px] flex items-center justify-center">
+                <CardContent className="text-center">
+                  <MessageSquare className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">Welcome to Your Project Workspace</h3>
+                  <p className="text-muted-foreground mb-6 max-w-md">
+                    Start a conversation with your AI team members to begin practicing your workplace collaboration skills.
+                  </p>
+                  <Button onClick={() => setShowNewConversation(true)} className="bg-gradient-to-r from-blue-600 to-purple-600">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Start Your First Conversation
+                  </Button>
+                </CardContent>
+              </Card>
             )}
+          </div>
+        </motion.div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Category</label>
-              <select
-                value={uploadForm.category}
-                onChange={(e) => setUploadForm({...uploadForm, category: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {CODE_CATEGORIES.map((category) => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+        {/* Dashboard Data Section */}
+        {dashboardData && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            {/* AI Coach Feedback */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Brain className="mr-3 h-5 w-5 text-blue-600" />
+                  AI Coach Feedback
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-gray-800 italic">{dashboardData.dashboard.feedback}</p>
+                </div>
+                {dashboardData.dashboard.suggestions && dashboardData.dashboard.suggestions.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-semibold text-sm mb-2">Suggestions:</h4>
+                    <ul className="space-y-1">
+                      {dashboardData.dashboard.suggestions.map((suggestion: string, index: number) => (
+                        <li key={index} className="text-sm text-muted-foreground flex items-start">
+                          <CheckCircle className="mr-2 h-3 w-3 text-green-600 mt-1 flex-shrink-0" />
+                          {suggestion}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Description (Optional)</label>
-              <textarea
-                value={uploadForm.description}
-                onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
-                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                rows={3}
-                placeholder="Describe the purpose of these files or what they contain"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowUploadCode(false)}
-                disabled={uploading}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={uploading || uploadForm.files.length === 0}
-                className="flex-1"
-              >
-                {uploading ? 'Uploading...' : 'Upload Files'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            {/* Tasks & Progress */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Activity className="mr-3 h-5 w-5 text-green-600" />
+                  Your Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dashboardData.dashboard.tasks && dashboardData.dashboard.tasks.length > 0 ? (
+                  <ul className="space-y-2">
+                    {dashboardData.dashboard.tasks.map((task: string, index: number) => (
+                      <li key={index} className="flex items-start">
+                        <Target className="mr-2 h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm">{task}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground text-sm">No tasks yet. Start a conversation to get personalized tasks from your AI coach.</p>
+                )}
+                
+                {dashboardData.dashboard.responsibilities && dashboardData.dashboard.responsibilities.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-semibold text-sm mb-2">Your Responsibilities:</h4>
+                    <ul className="space-y-1">
+                      {dashboardData.dashboard.responsibilities.map((resp: string, index: number) => (
+                        <li key={index} className="text-sm text-muted-foreground">• {resp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 };

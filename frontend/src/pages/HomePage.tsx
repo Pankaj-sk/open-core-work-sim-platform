@@ -1,396 +1,275 @@
-import React, { useState, useEffect } from 'react';
+// 📄 PAGE: HomePage.tsx - Landing page for AI-powered career development platform
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Users, FileText, TrendingUp, Clock, Star, ArrowRight, Sparkles, Zap, Target, Award, LogIn, UserPlus } from 'lucide-react';
+import { Target, Award, LogIn, UserPlus, Brain, MessageSquare, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { API_BASE_URL } from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
 
-interface Scenario {
-  id: string;
-  name: string;
-  description: string;
-  difficulty: string;
-  duration: number;
-}
-
 const HomePage: React.FC = () => {
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [loading, setLoading] = useState(true);
   const { isAuthenticated } = useAuth();
-
-  useEffect(() => {
-    fetchScenarios();
-  }, []);
-
-  const fetchScenarios = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/simulations/scenarios`);
-      if (response.ok) {
-        const data = await response.json();
-        const scenariosData = data.scenarios || {};
-        
-        const scenariosList: Scenario[] = Object.entries(scenariosData).map(([id, scenario]: [string, any]) => ({
-          id,
-          name: scenario.name || id.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          description: scenario.description || 'No description available',
-          difficulty: scenario.difficulty || 'Unknown',
-          duration: scenario.duration || 30
-        }));
-        
-        setScenarios(scenariosList);
-      } else {
-        console.error('Failed to fetch scenarios');
-        setScenarios([
-          {
-            id: 'team_meeting',
-            name: 'Team Meeting',
-            description: 'Lead a team meeting with various personalities and drive productive discussions',
-            difficulty: 'Easy',
-            duration: 30
-          },
-          {
-            id: 'client_presentation',
-            name: 'Client Presentation', 
-            description: 'Present a proposal to a challenging client and handle objections gracefully',
-            difficulty: 'Medium',
-            duration: 45
-          },
-          {
-            id: 'crisis_management',
-            name: 'Crisis Management',
-            description: 'Handle a workplace crisis with multiple stakeholders under pressure',
-            difficulty: 'Hard',
-            duration: 60
-          }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching scenarios:', error);
-      setScenarios([
-        {
-          id: 'team_meeting',
-          name: 'Team Meeting',
-          description: 'Lead a team meeting with various personalities and drive productive discussions',
-          difficulty: 'Easy',
-          duration: 30
-        },
-        {
-          id: 'client_presentation',
-          name: 'Client Presentation', 
-          description: 'Present a proposal to a challenging client and handle objections gracefully',
-          difficulty: 'Medium',
-          duration: 45
-        },
-        {
-          id: 'crisis_management',
-          name: 'Crisis Management',
-          description: 'Handle a workplace crisis with multiple stakeholders under pressure',
-          difficulty: 'Hard',
-          duration: 60
-        }
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const features = [
     {
-      icon: Zap,
-      title: 'AI-Powered Simulations',
-      description: 'Practice real workplace scenarios with intelligent AI agents that respond naturally to your actions.',
-      color: 'from-blue-500 to-cyan-500'
-    },
-    {
-      icon: Users,
-      title: 'Dynamic Role Playing',
-      description: 'Choose from various professional roles and interact with different personality types.',
-      color: 'from-green-500 to-emerald-500'
+      icon: Brain,
+      title: "AI Coach & Personalized Roadmap",
+      description: "Get a dedicated AI coach who creates your personalized learning path based on your role, goals, and current skills."
     },
     {
       icon: Target,
-      title: 'Automated Artifacts',
-      description: 'Generate meeting minutes, reports, and action items automatically from your simulations.',
-      color: 'from-purple-500 to-violet-500'
+      title: "Focused Project Workspace",
+      description: "Work on one carefully designed project at a time with AI team members who provide realistic collaboration experience."
     },
     {
-      icon: TrendingUp,
-      title: 'Performance Analytics',
-      description: 'Track your progress and receive detailed feedback on your communication and leadership skills.',
-      color: 'from-orange-500 to-red-500'
+      icon: MessageSquare,
+      title: "Smart Conversation System",
+      description: "Chat with AI personas who remember your interactions and provide dynamic workplace communication practice."
+    },
+    {
+      icon: BarChart3,
+      title: "AI Coach Debrief",
+      description: "Receive comprehensive analysis of your work with specific feedback on strengths and areas for improvement."
     }
   ];
 
-  const stats = [
-    { icon: Play, value: '500+', label: 'Simulations Completed' },
-    { icon: Users, value: '50+', label: 'AI Agents Available' },
-    { icon: Award, value: '95%', label: 'User Satisfaction' }
+  const userTypes = [
+    {
+      title: "Junior Developers",
+      description: "Practice communicating with senior team members and managers in a safe environment"
+    },
+    {
+      title: "Career Changers", 
+      description: "Learn workplace dynamics and communication patterns in your new field"
+    },
+    {
+      title: "Remote Workers",
+      description: "Improve virtual collaboration skills and build confidence in team interactions"
+    },
+    {
+      title: "Anyone Growing Professionally",
+      description: "Build communication, leadership, and collaboration skills that matter for career advancement"
+    }
   ];
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.5
-      }
-    }
-  };
-
-  const getDifficultyVariant = (difficulty: string) => {
-    switch (difficulty.toLowerCase()) {
-      case 'easy': return 'bg-green-100 text-green-800 border-green-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'hard': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
 
   return (
-    <motion.div 
-      className="min-h-screen"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Hero Section */}
       <motion.section 
-        className="relative py-20 lg:py-32 overflow-hidden"
-        variants={itemVariants}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative py-20 px-6"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5" />
-        <div className="container mx-auto px-4 relative">
-          <div className="text-center space-y-8 max-w-5xl mx-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary border border-primary/20"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">AI-Powered Workplace Training</span>
-            </motion.div>
-            
-            <motion.h1 
-              className="text-5xl md:text-7xl font-bold tracking-tight"
-              variants={itemVariants}
-            >
-              Master{' '}
-              <span className="bg-gradient-to-r from-primary via-purple-600 to-primary bg-clip-text text-transparent">
-                Workplace Skills
+        <div className="max-w-6xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
+            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
+              Your Personal AI Coach for
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                {" "}Professional Growth
               </span>
-              <br />
-              with AI Simulations
-            </motion.h1>
-            
-            <motion.p 
-              className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed"
-              variants={itemVariants}
-            >
-              Practice real workplace scenarios with intelligent AI agents. 
-              Develop communication, leadership, and problem-solving skills in a safe, interactive environment.
-            </motion.p>
-            
-            <motion.div 
-              className="flex flex-col sm:flex-row gap-4 justify-center pt-4"
-              variants={itemVariants}
-            >
-              {isAuthenticated ? (
-                // Buttons for authenticated users
-                <>
-                  <Link to="/simulation">
-                    <Button size="lg" className="gap-2 text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-shadow">
-                      <Play className="w-5 h-5" />
-                      Start Simulation
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                  <Link to="/agents">
-                    <Button variant="outline" size="lg" className="gap-2 text-lg px-8 py-6">
-                      <Users className="w-5 h-5" />
-                      Meet the Agents
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                // Buttons for guest users
-                <>
-                  <Link to="/login">
-                    <Button size="lg" className="gap-2 text-lg px-8 py-6 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                      <LogIn className="w-5 h-5" />
-                      Get Started - Sign In
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                  <Link to="/register">
-                    <Button variant="outline" size="lg" className="gap-2 text-lg px-8 py-6 border-2 hover:bg-blue-50">
-                      <UserPlus className="w-5 h-5" />
-                      Create Account
-                    </Button>
-                  </Link>
-                </>
-              )}
-            </motion.div>
-          </div>
+            </h1>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              SimWorld helps you develop essential workplace skills through realistic AI-powered team collaboration. 
+              Get personalized coaching, practice with AI personas, and receive detailed feedback on your professional growth.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            {isAuthenticated ? (
+              <Link to="/dashboard" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/register" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">
+                  <UserPlus className="mr-2 h-5 w-5" />
+                  Start Your Journey
+                </Link>
+                <Link to="/login" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8 py-6">
+                  <LogIn className="mr-2 h-5 w-5" />
+                  Sign In
+                </Link>
+              </>
+            )}
+          </motion.div>
         </div>
       </motion.section>
 
       {/* Features Section */}
-      <motion.section 
-        className="py-20 bg-muted/30"
-        variants={itemVariants}
-      >
-        <div className="container mx-auto px-4">
-          <motion.div className="text-center mb-16" variants={itemVariants}>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Choose SimWorld?
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              How SimWorld Accelerates Your Growth
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Experience cutting-edge AI technology designed to enhance your professional skills
-            </p>
-          </motion.div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div
-                  key={index}
-                  variants={itemVariants}
-                  whileHover={{ y: -5 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="h-full text-center border-0 shadow-lg hover:shadow-xl transition-shadow">
-                    <CardHeader className="pb-4">
-                      <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-r ${feature.color} mx-auto mb-4`}>
-                        <Icon className="w-8 h-8 text-white" />
-                      </div>
-                      <CardTitle className="text-xl">{feature.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <CardDescription className="text-base leading-relaxed">
-                        {feature.description}
-                      </CardDescription>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </motion.section>
-
-      {/* Scenarios Section */}
-      <motion.section 
-        className="py-20"
-        variants={itemVariants}
-      >
-        <div className="container mx-auto px-4">
-          <motion.div className="text-center mb-16" variants={itemVariants}>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Available Scenarios
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choose from a variety of workplace simulations tailored to different skill levels
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Our AI-powered platform provides a safe space to practice workplace skills and receive personalized coaching
             </p>
           </motion.div>
 
-          {loading ? (
-            <motion.div 
-              className="text-center py-16"
-              variants={itemVariants}
-            >
-              <div className="inline-flex items-center gap-2 text-lg text-muted-foreground">
-                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                Loading scenarios...
-              </div>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {scenarios.map((scenario, index) => (
-                <motion.div
-                  key={scenario.id}
-                  variants={itemVariants}
-                  whileHover={{ y: -5 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-center justify-between mb-2">
-                        <CardTitle className="text-xl">{scenario.name}</CardTitle>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getDifficultyVariant(scenario.difficulty)}`}>
-                          {scenario.difficulty}
-                        </span>
-                      </div>
-                      <CardDescription className="text-base leading-relaxed">
-                        {scenario.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          <span>{scenario.duration} min</span>
-                        </div>
-                        <Link to={`/simulation?scenario=${scenario.id}`}>
-                          <Button className="gap-2">
-                            <Play className="w-4 h-4" />
-                            Start
-                          </Button>
-                        </Link>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </motion.section>
-
-      {/* Stats Section */}
-      <motion.section 
-        className="py-20 bg-muted/30"
-        variants={itemVariants}
-      >
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <motion.div
-                  key={index}
-                  variants={itemVariants}
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="text-center border-0 shadow-lg">
-                    <CardContent className="pt-8 pb-8">
-                      <Icon className="w-12 h-12 text-primary mx-auto mb-4" />
-                      <div className="text-4xl font-bold text-primary mb-2">{stat.value}</div>
-                      <div className="text-muted-foreground font-medium">{stat.label}</div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="h-full hover:shadow-lg transition-shadow">
+                  <CardHeader className="text-center">
+                    <div className="mx-auto w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                      <feature.icon className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <CardTitle className="text-lg">{feature.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-center">
+                      {feature.description}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
           </div>
         </div>
-      </motion.section>
-    </motion.div>
+      </section>
+
+      {/* User Journey Section */}
+      <section className="py-20 px-6 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Your Career Development Journey
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Simple steps to start building the skills that matter for your professional growth
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                step: "1",
+                title: "Skill Assessment & AI Coach",
+                description: "Tell us about your role, goals, and current skills. Meet your dedicated AI coach who creates your personalized roadmap."
+              },
+              {
+                step: "2", 
+                title: "Project Workspace & AI Team",
+                description: "Work on a focused project with AI personas (Manager & Teammate) who provide realistic collaboration experience."
+              },
+              {
+                step: "3",
+                title: "AI Coach Debrief & Growth",
+                description: "Receive comprehensive feedback on your performance with specific insights on strengths and areas to improve."
+              }
+            ].map((step, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.2 }}
+                className="text-center"
+              >
+                <div className="mx-auto w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mb-6">
+                  {step.step}
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">{step.title}</h3>
+                <p className="text-gray-600">{step.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Who Is This For Section */}
+      <section className="py-20 px-6 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              Perfect For Every Stage of Your Career
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Whether you're starting out or looking to advance, SimWorld helps you build essential workplace skills
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {userTypes.map((type, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="h-full hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Award className="mr-3 h-5 w-5 text-blue-600" />
+                      {type.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>{type.description}</CardDescription>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 px-6 bg-gradient-to-r from-blue-600 to-purple-600">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl font-bold text-white mb-6">
+              Ready to Accelerate Your Professional Growth?
+            </h2>
+            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+              Join SimWorld today and start building the workplace skills that will advance your career
+            </p>
+            {!isAuthenticated && (
+              <Link to="/register" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-11 px-8 py-6">
+                <UserPlus className="mr-2 h-5 w-5" />
+                Get Started Free
+              </Link>
+            )}
+          </motion.div>
+        </div>
+      </section>
+    </div>
   );
 };
 

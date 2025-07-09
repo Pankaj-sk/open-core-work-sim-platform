@@ -1,58 +1,80 @@
-# Main application requirements
--r core/requirements.txt
+# FastAPI Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0  # ASGI server with extra dependencies for production
 
-# Development tools
-setuptools>=68.0.0
-wheel>=0.41.0
-
-# Core dependencies with security fixes
+# Database & ORM
 sqlalchemy==2.0.23
+alembic==1.13.0  # Database migrations
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+aiosqlite==0.19.0  # Async SQLite support
+
+# Data Validation & Settings
 pydantic==2.5.0
 pydantic-settings==2.1.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4  # Added bcrypt support for secure password hashing
-python-dotenv==1.0.0
-psycopg2-binary==2.9.9
-alembic==1.13.0  # Added for database migrations
-redis==5.0.1
-celery==5.3.4
+email-validator==2.1.0
 
-# AI and ML dependencies
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6  # For form data and file uploads
+
+# Environment & Configuration
+python-dotenv==1.0.0
+
+# AI & ML Core Dependencies
+openai==1.3.7
+google-generativeai==0.3.2
+anthropic==0.7.8
+
+# LangChain Framework
+langchain==0.0.350
+langchain-openai==0.0.2
+langchain-anthropic==0.0.1
+langchain-google-genai==0.0.5
+
+# Machine Learning & NLP
 sentence-transformers==2.2.2
 faiss-cpu==1.7.4
 numpy==1.24.3
 pandas==2.0.3
 scikit-learn==1.3.2
-openai==1.3.7
-anthropic==0.7.8
-langchain==0.0.350
-langchain-openai==0.0.2
-langchain-anthropic==0.0.1
-google-generativeai==0.3.2
-langchain-google-genai==0.0.5
 
-# Audio processing for voice calls with AI personas
+# Audio Processing (for AI voice features)
 SpeechRecognition==3.10.0
 pyttsx3==2.90
-pyaudio==0.2.11
 pydub==0.25.1
-wave==0.0.2
 
-# Additional utilities
+# File Processing & MIME Detection
+python-magic==0.4.27  # For file type detection (optional, fallback to mimetypes)
+
+# Async & HTTP
 aiofiles==23.2.1
+httpx==0.25.2
+requests==2.31.0
+
+# Caching & Background Tasks
+redis==5.0.1
+celery==5.3.4
+
+# Templates & Markdown
 jinja2==3.1.2
 markdown==3.5.1
+
+# Date & Time
 python-dateutil==2.8.2
 pytz==2023.3
 
-# Testing
+# Rate Limiting & Security
+slowapi==0.1.9
+
+# Development & Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
-httpx==0.25.2
 
-# Security and Production
-gunicorn==21.2.0  # WSGI server for production
-uvloop==0.17.0    # High performance event loop
-email-validator==2.0.0  # Email validation
-slowapi==0.1.9    # Rate limiting
+# Production Server
+gunicorn==21.2.0  # WSGI server (backup for uvicorn)
+uvloop==0.17.0    # High performance event loop (Linux/macOS)
+
+# Development Tools
+setuptools>=68.0.0
+wheel>=0.41.0

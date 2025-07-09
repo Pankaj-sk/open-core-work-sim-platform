@@ -1,262 +1,471 @@
-# AI-Powered Workplace Simulation Platform
+# 🚀 SimWorld - AI-Powered Career Development Platform
 
-A comprehensive platform for practicing real workplace scenarios with intelligent AI agents that maintain persistent memory and engage in realistic workplace dynamics.
+> **Your Personal AI Coach for Professional Growth Through Realistic Team Collaboration**
 
-## 🌟 Key Features
+SimWorld is an innovative career development platform that combines AI coaching with realistic team simulation to help professionals grow their skills in a safe, personalized environment. Built with modern web technologies and powered by advanced AI, SimWorld provides an immersive learning experience tailored to your career goals.
 
-### 🔐 **User Authentication & Project Management**
-- **User Registration & Login**: Secure authentication system with session management
-- **Project Creation**: Create projects with role selection and team generation
-- **Role-Based Access**: Choose from various professional roles (Developer, Manager, Designer, etc.)
-- **Team Management**: AI-generated team members with realistic personalities and skills
+## ✨ **What SimWorld Does**
 
-### 🧠 **Persistent Memory with RAG**
-- **Conversation Memory**: All conversations are stored and indexed using RAG (Retrieval-Augmented Generation)
-- **Context Awareness**: AI agents remember previous interactions and build on past discussions
-- **Semantic Search**: Find relevant past conversations and project context
-- **Memory Persistence**: Long-term memory across sessions and project phases
+### 🧠 **Intelligent AI Career Coach**
+- **Personalized Assessment**: Complete a comprehensive skill assessment to help the AI understand your current abilities and career aspirations
+- **Smart Roadmap Generation**: Your AI coach creates a customized development plan with specific projects, timelines, and learning objectives
+- **Continuous Mentoring**: Get real-time advice, answer questions about your roadmap, meetings, and career progression
+- **Adaptive Learning**: The AI coach can modify your roadmap at any time based on your progress, feedback, and changing goals
+- **Meeting Analysis**: Your coach analyzes all your team interactions and provides insights on communication patterns and areas for improvement
 
-### 💬 **Realistic Workplace Conversations**
-- **Agent-Initiated Conversations**: AI team members can start conversations based on project needs
-- **Scheduled Interactions**: Automatic scheduling of daily standups, code reviews, and team meetings
-- **Dynamic Responses**: AI agents respond contextually based on their role, personality, and project history
-- **Conversation Types**: Support for various workplace conversation types (standups, reviews, one-on-ones, etc.)
+### 💼 **Realistic Project Workspace**
+- **Immersive Team Simulation**: Work with AI team members that have distinct personalities, roles, and communication styles
+- **Real-World Scenarios**: Engage in authentic workplace situations like team meetings, code reviews, project planning, and one-on-ones
+- **Skill-Focused Projects**: Each project targets specific competencies like communication, leadership, technical skills, or collaboration
+- **Safe Learning Environment**: Practice difficult conversations and challenging scenarios without real-world consequences
 
-### 🎯 **Workplace Dynamics**
-- **Hierarchical Structure**: Realistic reporting relationships and organizational structure
-- **Role-Based Interactions**: Different conversation patterns based on roles and seniority
-- **Project Phases**: Support for different project lifecycle phases
-- **Task Management**: Integrated task assignment and tracking
+### 💬 **Advanced Conversation System**
+- **Natural AI Interactions**: Chat with AI team members who remember your conversation history and maintain consistent personalities
+- **Dynamic Team Dynamics**: Experience different working styles - from supportive colleagues to challenging managers
+- **Meeting Types**: Participate in various meeting formats including daily standups, project reviews, brainstorming sessions, and performance discussions
+- **Real-Time Feedback**: Get immediate responses and coaching suggestions during conversations
 
-### 📊 **Comprehensive Tracking**
-- **Daily Conversation Logs**: Track all conversations by date
-- **Project Analytics**: Monitor project progress and team interactions
-- **Memory Analytics**: Understand how AI agents use and reference past interactions
-- **Performance Insights**: Analyze communication patterns and workplace effectiveness
+### 📊 **Comprehensive Progress Tracking**
+- **Performance Analytics**: Track your development across multiple dimensions including communication effectiveness, leadership skills, and technical competency
+- **Detailed Debriefs**: After each project, receive in-depth analysis of your strengths, improvement areas, and personalized next steps
+- **Journey Documentation**: Build a portfolio of your professional development with concrete examples of growth and achievement
+- **Goal Alignment**: Monitor progress toward your specific career objectives with measurable milestones
 
-## 🚀 Quick Start
+## 🛠️ **Technical Stack**
 
-### Prerequisites
-- Python 3.8+
-- Node.js 16+
-- PostgreSQL (optional, SQLite for development)
+### **Frontend Technologies**
+- **React 18** with **TypeScript** for type-safe, modern web development
+- **Tailwind CSS** for utility-first styling and responsive design
+- **Framer Motion** for smooth animations and micro-interactions
+- **React Router** for seamless single-page application navigation
+- **React Query** for efficient data fetching and caching
+- **Radix UI** components for accessible, composable UI elements
+- **Lucide React** for consistent, beautiful icons
+- **Axios** for API communication
+- **React Hook Form** with **Zod** validation for forms
 
-### Backend Setup
+### **Backend Technologies**
+- **Python 3.8+** with **FastAPI** for high-performance API development
+- **SQLAlchemy** ORM with **SQLite** (development) or **PostgreSQL** (production)
+- **Alembic** for database migrations and version control
+- **Pydantic** for data validation and serialization
+- **JWT** authentication with **python-jose** for secure user sessions
+- **OpenAI API** integration for advanced AI capabilities
+- **Google Generative AI** for enhanced coaching and responses
+- **Redis** for caching and session management (optional)
 
-1. **Clone and Install Dependencies**
+### **AI & Machine Learning**
+- **OpenAI GPT Models** for AI coach and team member personalities
+- **Google Gemini** for advanced conversation generation and analysis
+- **LangChain** for AI workflow orchestration
+- **Sentence Transformers** for semantic search and content matching
+- **Custom AI Personas** with distinct personalities and communication styles
+
+## 🚀 **Getting Started**
+
+### **System Requirements**
+- **Python 3.8 or higher**
+- **Node.js 16 or higher**
+- **npm 7+ or yarn 1.22+**
+- **Git** for version control
+- **OpenAI API Key** (required for AI functionality)
+- **Google AI API Key** (optional, for enhanced features)
+
+### **Installation & Setup**
+
+#### **1. Clone the Repository**
 ```bash
 git clone <repository-url>
 cd open-core-work-sim-platform
+```
+
+#### **2. Backend Setup**
+
+**Install Python Dependencies:**
+```bash
+# Create virtual environment (recommended)
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-2. **Environment Configuration**
+**Configure Environment Variables:**
 ```bash
+# Copy the environment template
 cp .env.example .env
-# Edit .env with your configuration
+
+# Edit .env and add your API keys:
+# GOOGLE_API_KEY=your_google_ai_api_key_here
+# OPENAI_API_KEY=your_openai_api_key_here (optional)
 ```
 
-3. **Database Setup**
+**Initialize Database:**
 ```bash
-# For SQLite (development)
-python -c "from core.db import engine; from core.models import Base; Base.metadata.create_all(bind=engine)"
+# Create and setup the database
+python init_db.py
 
-# For PostgreSQL (production)
-# Update DATABASE_URL in .env and run migrations
+# (Optional) Create demo data
+python create_demo_project.py
 ```
 
-4. **Start the Backend**
+**Start Backend Server:**
 ```bash
-python main.py
+# Option 1: Using the convenience script (recommended)
+python start_backend.py
+
+# Option 2: Direct uvicorn command
+# Development mode with auto-reload
+uvicorn core.api:app --host 0.0.0.0 --port 8000 --reload
+
+# Alternative: Production mode
+uvicorn core.api:app --host 0.0.0.0 --port 8000
+
+# The backend will run on http://localhost:8000
+# API Documentation: http://localhost:8000/docs
 ```
 
-### Frontend Setup
+#### **3. Frontend Setup**
 
-1. **Install Dependencies**
+**Install Node.js Dependencies:**
 ```bash
 cd frontend
+
+# Install all required packages
 npm install
+
+# Alternative with yarn:
+# yarn install
 ```
 
-2. **Start Development Server**
+**Configure Frontend Environment:**
 ```bash
+# Create environment file (if needed)
+# Most configuration is handled by the backend
+```
+
+**Start Frontend Development Server:**
+```bash
+# Start the React development server
+npm start
+
+# Alternative with yarn:
+# yarn start
+
+# The frontend will run on http://localhost:3000
+```
+
+#### **4. Access the Application**
+- **Frontend (User Interface)**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+- **API Documentation**: http://localhost:5000/docs (FastAPI auto-generated docs)
+
+### **Quick Start Commands**
+
+**Development Workflow:**
+```bash
+# Terminal 1 - Backend (choose one)
+cd open-core-work-sim-platform
+python start_backend.py  # Recommended
+# OR: uvicorn core.api:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 - Frontend  
+cd open-core-work-sim-platform/frontend
 npm start
 ```
 
-3. **Access the Application**
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
+**Production Build:**
+```bash
+# Build frontend for production
+cd frontend
+npm run build
 
-## 📖 Usage Guide
-
-### 1. **Getting Started**
-1. Register a new account or log in
-2. Create your first project
-3. Select your role (e.g., Junior Developer, Project Manager)
-4. Choose project type and team size
-
-### 2. **Project Creation**
-- **Name & Description**: Define your project scope
-- **Role Selection**: Choose your position in the team
-- **Team Generation**: AI creates realistic team members based on your role
-- **Project Type**: Select from web development, mobile app, data science, etc.
-
-### 3. **Workplace Interactions**
-- **Start Conversations**: Initiate discussions with team members
-- **Respond to AI**: Engage with AI agents that remember previous interactions
-- **Agent-Initiated**: AI team members may start conversations with you
-- **Scheduled Meetings**: Participate in automatically scheduled team meetings
-
-### 4. **Memory & Context**
-- **Persistent Memory**: All conversations are stored and indexed
-- **Context Search**: Query project memory for relevant past discussions
-- **Role-Based Memory**: AI agents maintain role-specific context and knowledge
-
-## 🏗️ Architecture
-
-### Backend Components
-
-```
-core/
-├── api.py                 # FastAPI application and endpoints
-├── models.py              # Database models and schemas
-├── db.py                  # Database configuration
-├── config.py              # Application configuration
-├── auth/                  # Authentication system
-│   ├── manager.py         # User authentication and session management
-│   └── models.py          # Auth-related data models
-├── projects/              # Project management
-│   ├── manager.py         # Project lifecycle and team management
-│   └── rag_manager.py     # RAG-based memory system
-├── agents/                # AI agent system
-│   └── manager.py         # Agent management and interactions
-├── conversation/          # Conversation management
-│   └── context_manager.py # Conversation context and memory
-└── simulation/            # Simulation engine
-    └── engine.py          # Workplace simulation logic
+# Start production server
+cd ..
+python start_production.py
 ```
 
-### Frontend Components
+## 🔧 **Configuration**
 
-```
-frontend/src/
-├── contexts/
-│   └── AuthContext.tsx    # Authentication state management
-├── pages/
-│   ├── LoginPage.tsx      # User login
-│   ├── RegisterPage.tsx   # User registration
-│   ├── DashboardPage.tsx  # Project overview
-│   └── ProjectPage.tsx    # Project workspace
-├── components/
-│   ├── Header.tsx         # Navigation header
-│   └── ChatWindow.tsx     # Conversation interface
-└── services/
-    └── api.ts             # API service layer
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
+### **Environment Variables (.env)**
 ```env
-# Database
-DATABASE_URL=sqlite:///./work_sim.db
-# DATABASE_URL=postgresql://user:pass@localhost/work_sim
+# AI Configuration (Required)
+GOOGLE_API_KEY=your_google_ai_api_key_here
+# OPENAI_API_KEY=your_openai_api_key_here
 
-# Authentication
-SECRET_KEY=your-secret-key
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+# Database Configuration
+DATABASE_URL=sqlite:///simulation.db
+# For production PostgreSQL:
+# DATABASE_URL=postgresql://username:password@localhost/simworld_db
 
-# AI Services
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
+# Security Configuration
+SECRET_KEY=your-unique-secret-key-change-in-production
+JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
 
-# RAG Configuration
-EMBEDDING_MODEL=all-MiniLM-L6-v2
-VECTOR_DB_PATH=./vector_db
+# Server Configuration
+HOST=localhost
+PORT=5000
+FLASK_ENV=development
+FLASK_DEBUG=true
 
-# CORS
+# AI Model Settings
+AI_PROVIDER=google
+GOOGLE_MODEL=gemini-1.5-flash
+GOOGLE_MAX_TOKENS=1000
+GOOGLE_TEMPERATURE=0.7
+
+# CORS Configuration
 CORS_ORIGINS=["http://localhost:3000"]
 ```
 
-### Database Models
+### **Frontend Dependencies (package.json)**
+Key packages automatically installed with `npm install`:
 
-The platform uses SQLAlchemy with the following key models:
+**Core React Dependencies:**
+- `react@^18.2.0` - React framework
+- `react-dom@^18.2.0` - React DOM rendering
+- `typescript@^4.9.5` - TypeScript support
+- `react-scripts@^5.0.1` - Create React App build tools
 
-- **User**: User accounts and authentication
-- **Project**: Project definitions and settings
-- **ProjectMember**: Team members (users and AI agents)
-- **Conversation**: Conversation records and metadata
-- **Message**: Individual messages in conversations
-- **ProjectMemory**: RAG-indexed memory chunks
-- **ScheduledConversation**: Agent-initiated conversation scheduling
+**Routing & State Management:**
+- `react-router-dom@^6.20.1` - Client-side routing
+- `@tanstack/react-query@^5.81.5` - Data fetching and caching
 
-## 🧪 Testing
+**UI & Styling:**
+- `tailwindcss@^3.3.6` - Utility-first CSS framework
+- `framer-motion@^12.23.0` - Animation library
+- `lucide-react@^0.294.0` - Icon library
+- `@radix-ui/*` - Accessible UI components
 
-### Backend Tests
-```bash
-# Run all tests
-pytest
+**Forms & Validation:**
+- `react-hook-form@^7.59.0` - Form handling
+- `zod@^3.25.74` - Schema validation
 
-# Run specific test categories
-pytest tests/test_auth.py
-pytest tests/test_projects.py
-pytest tests/test_conversations.py
-```
+**AI Integration:**
+- `@google/generative-ai@^0.24.1` - Google AI client
+- `axios@^1.6.2` - HTTP client for API calls
 
-### Frontend Tests
-```bash
-cd frontend
-npm test
-```
+### **Backend Dependencies (requirements.txt)**
+Key packages automatically installed with `pip install -r requirements.txt`:
 
-## 🚀 Deployment
+**Web Framework:**
+- `fastapi==0.104.1` - Modern, fast web framework
+- `uvicorn[standard]==0.24.0` - ASGI server
 
-### Docker Deployment
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
-```
+**Database:**
+- `sqlalchemy==2.0.23` - SQL toolkit and ORM
+- `alembic==1.13.0` - Database migrations
+- `psycopg2-binary==2.9.9` - PostgreSQL adapter
 
-### Production Considerations
-1. **Database**: Use PostgreSQL for production
-2. **Authentication**: Implement proper JWT token management
-3. **Security**: Configure CORS, rate limiting, and input validation
-4. **Monitoring**: Add logging and monitoring for AI interactions
-5. **Scaling**: Consider Redis for session management and caching
+**Authentication & Security:**
+- `python-jose[cryptography]==3.3.0` - JWT tokens
+- `passlib[bcrypt]==1.7.4` - Password hashing
+- `pydantic==2.5.0` - Data validation
 
-## 🤝 Contributing
+**AI & Machine Learning:**
+- `openai==1.3.7` - OpenAI API client
+- `langchain==0.0.350` - AI workflow framework
+- `sentence-transformers==2.2.2` - Semantic embeddings
+- `numpy==1.24.3` - Numerical computing
+- `pandas==2.0.3` - Data manipulation
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+## 📱 **User Journey**
 
-## 📄 License
+### **1. Registration & Onboarding**
+1. Create account with email and password
+2. Complete comprehensive skill assessment:
+   - Current role and experience level
+   - Career goals and aspirations
+   - Skills you want to develop
+   - Workplace challenges you face
+3. Meet your personal AI Career Coach
+
+### **2. AI Coach Consultation**
+1. Coach analyzes your profile using advanced AI
+2. Generates personalized development roadmap:
+   - Custom projects tailored to your goals
+   - Specific learning objectives
+   - Timeline and milestones
+   - AI team members matched to your needs
+3. Review and discuss roadmap with your coach
+4. Start your development journey
+
+### **3. Project-Based Learning**
+1. Enter immersive project workspace
+2. Meet your AI team members:
+   - **Manager**: Provides direction, feedback, and performance reviews
+   - **Colleagues**: Collaborate on tasks, ask questions, share ideas
+   - **Senior Members**: Mentor, provide guidance, challenge your thinking
+3. Participate in realistic workplace scenarios:
+   - Daily standup meetings
+   - Project planning sessions
+   - Code reviews and technical discussions
+   - One-on-one performance conversations
+   - Team conflict resolution
+
+### **4. Real-Time Coaching**
+1. Chat with your AI coach anytime during projects
+2. Ask questions about:
+   - How to handle difficult team situations
+   - Feedback on your communication style
+   - Advice on career decisions
+   - Modifications to your roadmap
+3. Get insights from meeting analysis and conversation patterns
+
+### **5. Progress Analysis & Growth**
+1. Complete projects and receive detailed debriefs
+2. AI coach analyzes all your interactions and provides:
+   - Comprehensive skills assessment
+   - Specific strengths you demonstrated
+   - Areas for continued improvement
+   - Personalized recommendations for next steps
+3. Track progress over time with detailed analytics
+4. Modify roadmap based on learning and interests
+
+## 🎯 **Who Benefits from SimWorld**
+
+### **Software Developers**
+- **Junior Developers**: Practice communicating technical concepts and collaborating with senior team members
+- **Mid-Level Engineers**: Develop leadership skills and learn to mentor others
+- **Career Changers**: Understand software development team dynamics and communication patterns
+
+### **Product & Project Managers**
+- **New Managers**: Practice leading teams, handling conflicts, and providing effective feedback
+- **Product Owners**: Improve stakeholder communication and requirements gathering
+- **Scrum Masters**: Enhance facilitation skills and team dynamics management
+
+### **Business Professionals**
+- **Remote Workers**: Develop virtual collaboration and communication skills
+- **Introverts**: Build confidence in team settings and public speaking
+- **Career Climbers**: Practice skills needed for promotion to leadership roles
+
+### **Students & Career Changers**
+- **CS Students**: Gain realistic workplace experience before entering the job market
+- **Bootcamp Graduates**: Bridge the gap between technical skills and professional communication
+- **Career Switchers**: Learn industry-specific communication patterns and team dynamics
+
+## 🔒 **Security & Privacy**
+
+### **Data Protection**
+- **Secure Authentication**: JWT-based sessions with bcrypt password hashing
+- **API Security**: Rate limiting, input validation, and SQL injection prevention
+- **Privacy First**: Your conversations and progress data remain private
+- **GDPR Compliant**: User data handling follows privacy regulations
+
+### **AI Integration Security**
+- **API Key Management**: Secure storage and handling of AI service credentials
+- **Content Filtering**: AI responses are monitored for appropriate workplace content
+- **Data Minimization**: Only necessary data is sent to AI services
+- **No Training Data**: Your conversations are not used to train AI models
+
+## 🚧 **Development Roadmap**
+
+### **Phase 1: Core Platform** ✅ *Complete*
+- [x] User registration and authentication
+- [x] Comprehensive skill assessment and onboarding
+- [x] AI Coach with intelligent roadmap generation
+- [x] Project workspace with AI team members
+- [x] Real-time chat system with conversation memory
+- [x] Progress tracking and detailed project debriefs
+- [x] Google AI integration for enhanced coaching
+
+### **Phase 2: Enhanced Experience** 🚧 *In Progress*
+- [x] Conversation analysis and communication insights
+- [x] Adaptive roadmap modification
+- [x] Multiple AI personality types
+- [ ] Advanced meeting scenarios (performance reviews, conflict resolution)
+- [ ] Code sharing and technical discussion features
+- [ ] Mobile-responsive design optimization
+
+### **Phase 3: Advanced Features** 📋 *Planned*
+- [ ] Multi-project career tracks
+- [ ] Industry-specific scenarios (healthcare, finance, education)
+- [ ] Integration with professional development platforms
+- [ ] Team collaboration features for shared learning
+- [ ] Advanced analytics and reporting
+- [ ] API for enterprise integration
+
+### **Phase 4: Scale & Community** 🔮 *Future*
+- [ ] Learning community and peer connections
+- [ ] Certification and skill verification
+- [ ] Enterprise features for organizations
+- [ ] Advanced AI models and conversation depth
+- [ ] Integration with learning management systems
+
+## 🤝 **Contributing**
+
+We welcome contributions that enhance the core mission of professional development through AI-powered simulation!
+
+### **Development Setup**
+1. Follow the installation instructions above
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes with appropriate tests
+4. Ensure code quality: `npm run lint` (frontend) and `flake8` (backend)
+5. Submit a pull request with clear description
+
+### **Contribution Guidelines**
+- **Focus on User Experience**: Prioritize features that directly benefit learner growth
+- **Maintain AI Quality**: Ensure AI interactions remain helpful and realistic
+- **Code Quality**: Follow TypeScript/Python best practices and include tests
+- **Documentation**: Update documentation for any new features or changes
+
+### **Areas for Contribution**
+- New AI personality types and conversation scenarios
+- Enhanced UI/UX for better learning experience
+- Additional skill assessment and tracking features
+- Performance optimizations and bug fixes
+- Documentation improvements and examples
+
+## 📄 **License**
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+---
 
-For support and questions:
-- Create an issue in the repository
-- Check the [documentation](docs/)
-- Review the [API documentation](http://localhost:8000/docs)
+## 🆘 **Support & Troubleshooting**
 
-## 🔮 Roadmap
+### **Common Issues**
 
-- [ ] Advanced AI agent personalities and behaviors
-- [ ] Multi-language support
-- [ ] Video/audio conversation simulation
-- [ ] Integration with external project management tools
-- [ ] Advanced analytics and reporting
-- [ ] Mobile application
-- [ ] Real-time collaboration features
-- [ ] Custom scenario creation tools
+**Backend won't start:**
+```bash
+# Check Python version
+python --version  # Should be 3.8+
+
+# Reinstall dependencies
+pip install -r requirements.txt
+
+# Check database
+python init_db.py
+```
+
+**Frontend build errors:**
+```bash
+# Clear node modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+
+# Check Node version
+node --version  # Should be 16+
+```
+
+**AI features not working:**
+- Verify your API keys are set in `.env`
+- Check API key permissions and quota
+- Review backend logs for AI service errors
+
+### **Getting Help**
+- Check the [Issues](issues) section for known problems
+- Review API documentation at `http://localhost:5000/docs`
+- Examine browser console and backend logs for error messages
 
 ---
 
-**Note**: This platform is designed for educational and training purposes. AI agents simulate workplace interactions but should not replace real professional development and mentorship.
+**Built with ❤️ for professional growth**
+
+*SimWorld - Your AI-powered career development companion*

@@ -77,8 +77,10 @@ interface ConversationDetails {
   }>;
 }
 
-// Dashboard-specific interfaces
-interface DashboardTask {
+// 📄 PAGE: api.ts - API service for backend communication
+
+// Dashboard-specific interfaces - TODO: Remove comments when implemented
+/* interface DashboardTask {
   id: string;
   title: string;
   description: string;
@@ -108,7 +110,7 @@ interface AgentFeedback {
   receivedAt: string;
   deadline?: string;
   category: 'order' | 'feedback' | 'request' | 'update';
-}
+} */
 
 class ApiService {
   private getAuthHeaders(): HeadersInit {

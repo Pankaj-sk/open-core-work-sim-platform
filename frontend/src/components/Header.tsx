@@ -1,22 +1,51 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Users, Play, Home, Settings, LogIn, UserPlus, LogOut, User } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Users, Play, Home, Settings, LogIn, UserPlus, LogOut, User, Brain, RotateCcw, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { useAuth } from '../contexts/AuthContext';
+import DataManager from '../utils/dataManager';
 
 const Header: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const [showResetDialog, setShowResetDialog] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Home', icon: Home, public: true },
-    { path: '/simulation', label: 'Simulation', icon: Play, public: false },
+    { path: '/dashboard', label: 'Dashboard', icon: User, public: false },
+    { path: '/project', label: 'Projects', icon: Play, public: false },
     { path: '/agents', label: 'Agents', icon: Users, public: false },
+    { path: '/coach', label: 'AI Coach', icon: Brain, public: false },
   ];
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleResetData = () => {
+    console.log('🧹 Resetting all SimWorld data...');
+    DataManager.resetAllData();
+    setShowResetDialog(false);
+    
+    // Force reload to clear any cached state
+    window.location.href = '/onboarding';
   };
 
   return (
@@ -64,16 +93,29 @@ const Header: React.FC = () => {
             {isAuthenticated ? (
               // Authenticated user menu
               <>
-                <Link to="/dashboard">
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <User size={16} />
-                    <span className="hidden sm:inline">Dashboard</span>
-                  </Button>
-                </Link>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings size={16} />
-                  <span className="hidden sm:inline">Settings</span>
-                </Button>
+                {/* Settings Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Settings size={16} />
+                      <span className="hidden sm:inline">Settings</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => navigate('/onboarding')}>
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Edit Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => setShowResetDialog(true)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      <span>Reset All Data</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -107,6 +149,46 @@ const Header: React.FC = () => {
           </nav>
         </div>
       </div>
+      
+      {/* Reset Data Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Reset All Data
+            </DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>This action will permanently delete:</p>
+              <ul className="list-disc list-inside text-sm space-y-1 ml-4">
+                <li>Your onboarding profile and preferences</li>
+                <li>All project progress and history</li>
+                <li>AI coach conversation history</li>
+                <li>Completed scenarios and feedback</li>
+              </ul>
+              <p className="font-medium text-destructive">
+                This action cannot be undone. You'll need to complete onboarding again.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowResetDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleResetData}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset All Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.header>
   );
 };

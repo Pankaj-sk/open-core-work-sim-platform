@@ -1,3 +1,4 @@
+// 📄 COMPONENT: ChatWindowUltra.tsx - Enhanced chat component with AI agents
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Send, MessageCircle, User, Users, CheckCheck, Check, X, LogOut } from 'lucide-react';
 import './ChatWindowUltra.css';
@@ -250,7 +251,7 @@ const ChatWindowUltra: React.FC<ChatWindowProps> = ({
       }, responseDelay);
     });
 
-  }, [inputMessage, userPersonality, activeParticipants, setTypingIndicator]);
+  }, [inputMessage, userPersonality, activeParticipants, setTypingIndicator]); // fetchAgentResponse will be defined below
 
   // Optimized API call with streaming-like response
   const fetchAgentResponse = useCallback(async (

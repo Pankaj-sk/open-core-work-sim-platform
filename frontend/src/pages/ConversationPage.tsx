@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+// 📄 PAGE: ConversationPage.tsx - Individual conversation details and chat interface
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { apiService } from '../services/api';
@@ -28,7 +29,7 @@ const ConversationPage: React.FC = () => {
   const [conversation, setConversation] = useState<ConversationDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadConversation = async () => {
+  const loadConversation = useCallback(async () => {
     try {
       setLoading(true);
       if (!projectId || !conversationId) {
@@ -50,13 +51,13 @@ const ConversationPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, conversationId, navigate]);
 
   useEffect(() => {
     if (projectId && conversationId) {
       loadConversation();
     }
-  }, [projectId, conversationId]);
+  }, [projectId, conversationId, loadConversation]);
 
   const handleBack = () => {
     navigate(`/projects/${projectId}`);
