@@ -1,11 +1,12 @@
-// 📄 PAGE: DashboardPage.tsx - Main dashboard for career development MVP
+// 📄 PAGE: DashboardPage.tsx - Enhanced dashboard with projects and analytics
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Brain, Target, MessageSquare, Award, TrendingUp, Play, Users, CheckCircle } from 'lucide-react';
+import { Brain, Target, MessageSquare, Award, TrendingUp, Play, Users, CheckCircle, BarChart3, Calendar, Clock, Zap } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
+import DataManager from '../utils/dataManager';
 
 interface UserProgress {
   completedProjects: number;
@@ -16,100 +17,69 @@ interface UserProgress {
 }
 
 interface ProjectRoadmap {
+  id: string;
   title: string;
   description: string;
   goals: string[];
   estimatedDuration: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  status: 'Available' | 'In Progress' | 'Completed';
   aiTeamMembers: {
     manager: string;
-    teammate: string;
+    teammates: string[];
   };
+  completedAt?: string;
+  progress: number;
+}
+
+interface AnalyticsSnapshot {
+  weeklyProgress: number;
+  skillsImproved: number;
+  conversationsCompleted: number;
+  avgSessionTime: string;
+  lastAnalysis: string;
 }
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
-  const [roadmap, setRoadmap] = useState<ProjectRoadmap | null>(null);
+  const [projects, setProjects] = useState<ProjectRoadmap[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsSnapshot | null>(null);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
   useEffect(() => {
     // Check if user has completed onboarding
-    const onboardingComplete = localStorage.getItem('hasCompletedOnboarding');
-    const skillData = localStorage.getItem('userSkillData');
-    
-    if (!onboardingComplete && !skillData) {
+    const onboardingComplete = DataManager.hasCompletedOnboarding();
+    if (!onboardingComplete) {
       navigate('/onboarding');
       return;
     }
-    
     setHasCompletedOnboarding(true);
-    
-    // Load user progress from localStorage
-    const savedProgress = localStorage.getItem('userProgress');
-    const skillDataParsed = JSON.parse(localStorage.getItem('userSkillData') || '{}');
-    
-    const dynamicProgress: UserProgress = {
-      completedProjects: parseInt(localStorage.getItem('completedProjectsCount') || '0'),
-      currentProject: localStorage.getItem('currentProjectId') || null,
-      skillsImproved: savedProgress ? JSON.parse(savedProgress).skillsImproved || [] : [],
-      nextGoal: Array.isArray(skillDataParsed.careerGoals) && skillDataParsed.careerGoals.length > 0 
-        ? skillDataParsed.careerGoals[0] 
-        : Array.isArray(skillDataParsed.improvementAreas) && skillDataParsed.improvementAreas.length > 0
-          ? skillDataParsed.improvementAreas[0]
-          : 'build workplace communication skills',
-      coachFeedback: 'Welcome back! Your AI coach has prepared personalized challenges based on your goals.'
-    };
-    
-    // Generate project roadmap based on user's actual data and progress
-    const projectCount = dynamicProgress.completedProjects;
-    const difficultyLevel = projectCount === 0 ? 'Beginner' : projectCount < 3 ? 'Intermediate' : 'Advanced';
-    
-    const dynamicRoadmap: ProjectRoadmap = {
-      title: `${difficultyLevel} Project Challenge`,
-      description: `A carefully designed ${difficultyLevel.toLowerCase()}-level project to help you practice ${
-        Array.isArray(skillDataParsed.careerGoals) && skillDataParsed.careerGoals.length > 0 
-          ? skillDataParsed.careerGoals.slice(0, 2).join(' and ')
-          : 'essential workplace skills'
-      }.`,
-      goals: [
-        'Practice professional communication and collaboration',
-        'Build confidence in team interactions',
-        'Develop problem-solving skills in a work environment'
-      ],
-      estimatedDuration: projectCount === 0 ? '1-2 weeks' : projectCount < 3 ? '2-3 weeks' : '3-4 weeks',
-      difficulty: difficultyLevel,
-      aiTeamMembers: {
-        manager: 'AI Project Manager - Experienced leader focused on guidance and mentorship',
-        teammate: 'AI Team Member - Collaborative partner ready to work with you'
-      }
-    };
-    
-    setUserProgress(dynamicProgress);
-    setRoadmap(dynamicRoadmap);
+    // Load user progress
+    const progress = DataManager.getUserProgress();
+    setUserProgress(progress);
+    // Load projects from roadmap data (no hardcoded projects)
+    const roadmap = DataManager.getRoadmapData();
+    setProjects(roadmap?.projects || []);
+    // Load analytics from progress (no random or hardcoded analytics)
+    setAnalytics({
+      weeklyProgress: progress?.completedProjects ? Math.min(100, progress.completedProjects * 20) : 0,
+      skillsImproved: progress?.skillsImproved?.length || 0,
+      conversationsCompleted: progress?.conversationsCompleted || 0,
+      avgSessionTime: '-',
+      lastAnalysis: progress?.lastActiveDate ? new Date(progress.lastActiveDate).toLocaleDateString() : '-'
+    });
   }, [navigate]);
 
-  const startProject = () => {
-    // Store current project context in localStorage for ProjectPage to access
-    if (roadmap && userProgress) {
-      const projectContext = {
-        title: roadmap.title,
-        description: roadmap.description,
-        difficulty: roadmap.difficulty,
-        goals: roadmap.goals,
-        teamMembers: roadmap.aiTeamMembers,
-        userProgress: userProgress,
-        startedAt: new Date().toISOString()
-      };
-      localStorage.setItem('currentProjectContext', JSON.stringify(projectContext));
-      localStorage.setItem('currentProjectId', 'demo-project-1');
-    }
-    // Navigate to the project page with the demo project ID
-    navigate('/project/demo-project-1');
+  const startProject = (projectId: string) => {
+    // Set current project and navigate to coach introduction
+    localStorage.setItem('currentProjectId', projectId);
+    localStorage.setItem('projectStartMode', 'coach-intro');
+    navigate(`/coach?project=${projectId}`);
   };
 
-  const viewDebrief = () => {
-    navigate('/debrief');
+  const viewAnalytics = () => {
+    navigate('/analytics');
   };
 
   if (!hasCompletedOnboarding) {
@@ -117,216 +87,198 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Welcome Header */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="text-center mb-8"
         >
           <div className="mx-auto w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-6">
-            <Brain className="h-10 w-10 text-blue-600" />
+            <Target className="h-10 w-10 text-blue-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome back, Professional! 👋
+            Your Learning Dashboard 📊
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Your AI coach has prepared your next career development challenge
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Explore AI-designed projects and track your professional growth
           </p>
         </motion.div>
 
-        {/* Progress Overview */}
-        {userProgress && (
+        {/* Quick Stats */}
+        {userProgress && analytics ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="grid md:grid-cols-3 gap-6 mb-12"
+            className="grid md:grid-cols-4 gap-6 mb-8"
           >
             <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center">
-                  <Award className="mr-2 h-5 w-5 text-yellow-600" />
-                  Projects Completed
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Projects Completed</CardTitle>
               </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-3xl font-bold text-yellow-600 mb-2">
-                  {userProgress.completedProjects}
-                </div>
-                <p className="text-gray-600">Career development projects</p>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{userProgress.completedProjects ?? 0}</div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center">
-                  <TrendingUp className="mr-2 h-5 w-5 text-green-600" />
-                  Skills Improved
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Weekly Progress</CardTitle>
               </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-3xl font-bold text-green-600 mb-2">
-                  {userProgress.skillsImproved.length}
-                </div>
-                <p className="text-gray-600">Professional competencies</p>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{analytics.weeklyProgress ?? 0}%</div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="flex items-center justify-center">
-                  <Target className="mr-2 h-5 w-5 text-blue-600" />
-                  Current Focus
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Skills Improved</CardTitle>
               </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-sm font-medium text-blue-600 mb-2">
-                  {userProgress.nextGoal}
-                </div>
-                <p className="text-gray-600">Next development goal</p>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">{analytics.skillsImproved ?? 0}</div>
               </CardContent>
             </Card>
-          </motion.div>
-        )}
 
-        {/* AI Coach Message */}
-        {userProgress && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-12"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Brain className="mr-3 h-6 w-6 text-blue-600" />
-                  Message from Your AI Coach
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={viewAnalytics}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Detailed Analytics
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <p className="text-gray-800 italic mb-4">"{userProgress.coachFeedback}"</p>
-                  <p className="text-gray-700">
-                    I've designed your next project specifically to help you {userProgress.nextGoal.toLowerCase()}. 
-                    Are you ready to take on this new challenge?
-                  </p>
-                </div>
+                <div className="text-sm text-blue-600 font-medium">View Full Report →</div>
               </CardContent>
             </Card>
           </motion.div>
+        ) : (
+          <div className="text-center text-gray-500 mb-8">No analytics data available yet.</div>
         )}
 
-        {/* Current Project Roadmap */}
-        {roadmap && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="mb-12"
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Target className="mr-3 h-6 w-6 text-blue-600" />
-                    Your Next Project
-                  </div>
-                  <Badge variant={roadmap.difficulty === 'Beginner' ? 'secondary' : roadmap.difficulty === 'Intermediate' ? 'default' : 'destructive'}>
-                    {roadmap.difficulty}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  Estimated duration: {roadmap.estimatedDuration}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">{roadmap.title}</h3>
-                  <p className="text-gray-700">{roadmap.description}</p>
-                </div>
+        {/* AI Coach Projects Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                <Brain className="mr-3 h-6 w-6 text-blue-600" />
+                AI Coach Designed Projects
+              </h2>
+              <p className="text-gray-600 mt-1">Personalized challenges based on your goals and progress</p>
+            </div>
+          </div>
 
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Learning Goals:</h4>
-                  <ul className="space-y-2">
-                    {roadmap.goals.map((goal, index) => (
-                      <li key={index} className="flex items-start">
-                        <CheckCircle className="mr-2 h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-700">{goal}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Your AI Team Members:</h4>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex items-center mb-2">
-                        <Users className="mr-2 h-4 w-4 text-blue-600" />
-                        <span className="font-medium">Project Manager</span>
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {(Array.isArray(projects) && projects.length > 0) ? projects.map((project) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Card className="h-full hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{project.title}</CardTitle>
+                        <CardDescription className="mt-1">{project.description}</CardDescription>
                       </div>
-                      <p className="text-sm text-gray-700">{roadmap.aiTeamMembers.manager}</p>
+                      <Badge 
+                        variant={project.difficulty === 'Beginner' ? 'secondary' : 
+                                project.difficulty === 'Intermediate' ? 'default' : 'destructive'}
+                      >
+                        {project.difficulty}
+                      </Badge>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex items-center mb-2">
-                        <Users className="mr-2 h-4 w-4 text-green-600" />
-                        <span className="font-medium">Teammate</span>
-                      </div>
-                      <p className="text-sm text-gray-700">{roadmap.aiTeamMembers.teammate}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm text-gray-700 mb-2">Learning Goals:</h4>
+                      <ul className="space-y-1">
+                        {(Array.isArray(project.goals) ? project.goals.slice(0, 2) : []).map((goal, index) => (
+                          <li key={index} className="flex items-start text-sm text-gray-600">
+                            <CheckCircle className="mr-2 h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
+                            {goal}
+                          </li>
+                        ))}
+                        {Array.isArray(project.goals) && project.goals.length > 2 && (
+                          <li className="text-sm text-gray-500">+{project.goals.length - 2} more goals</li>
+                        )}
+                      </ul>
                     </div>
-                  </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                  <Button onClick={startProject} size="lg" className="flex items-center">
-                    <Play className="mr-2 h-5 w-5" />
-                    Start Project
-                  </Button>
-                  {userProgress && userProgress.completedProjects > 0 && (
-                    <Button onClick={viewDebrief} variant="outline" size="lg" className="flex items-center">
-                      <MessageSquare className="mr-2 h-5 w-5" />
-                      View Last Debrief
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center">
+                        <Clock className="mr-1 h-4 w-4" />
+                        {project.estimatedDuration || '-'}
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="mr-1 h-4 w-4" />
+                        {(project.aiTeamMembers && Array.isArray(project.aiTeamMembers.teammates)) ? (project.aiTeamMembers.teammates.length + 1) : 1} AI personas
+                      </div>
+                    </div>
+
+                    <Button 
+                      onClick={() => startProject(project.id)} 
+                      className="w-full"
+                      disabled={project.status === 'In Progress'}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      {project.status === 'Available' ? 'Start Project' : 
+                       project.status === 'In Progress' ? 'Continue Project' : 'Review Project'}
                     </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )) : (
+              <div className="col-span-full text-center text-gray-500">No projects available yet. Complete onboarding or generate a roadmap to get started.</div>
+            )}
+          </div>
+        </motion.div>
 
-        {/* Skills Progress */}
-        {userProgress && userProgress.skillsImproved.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <TrendingUp className="mr-3 h-6 w-6 text-green-600" />
-                  Skills You've Improved
-                </CardTitle>
-                <CardDescription>
-                  Track your professional development journey
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {userProgress.skillsImproved.map((skill, index) => (
-                    <Badge key={index} variant="secondary" className="bg-green-100 text-green-800">
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="grid md:grid-cols-3 gap-6"
+        >
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/coach')}>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <MessageSquare className="mr-3 h-5 w-5 text-blue-600" />
+                Chat with Coach
+              </CardTitle>
+              <CardDescription>Get personalized guidance and feedback</CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/roadmap')}>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <TrendingUp className="mr-3 h-5 w-5 text-green-600" />
+                View Roadmap
+              </CardTitle>
+              <CardDescription>See your detailed career development plan</CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={viewAnalytics}>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <BarChart3 className="mr-3 h-5 w-5 text-purple-600" />
+                Performance Analytics
+              </CardTitle>
+              <CardDescription>Deep insights into your progress and growth</CardDescription>
+            </CardHeader>
+          </Card>
+        </motion.div>
       </div>
     </div>
   );

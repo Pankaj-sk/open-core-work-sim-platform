@@ -8,12 +8,16 @@ class GoogleAIService {
 
   static initialize() {
     const apiKey = process.env.REACT_APP_GOOGLE_AI_API_KEY;
-    if (apiKey) {
+    if (apiKey && apiKey !== 'YOUR_ACTUAL_GOOGLE_AI_API_KEY_HERE') {
       this.genAI = new GoogleGenerativeAI(apiKey);
       this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
       console.log('✅ Google AI initialized successfully');
+      console.log('🔑 API Key present:', apiKey.substring(0, 8) + '...');
     } else {
-      console.log('⚠️ Google AI API key not found, using fallback responses');
+      console.log('⚠️ Google AI API key not configured properly');
+      console.log('Current key:', apiKey);
+      console.log('Please set a valid API key from https://aistudio.google.com/app/apikey');
+      console.log('Update REACT_APP_GOOGLE_AI_API_KEY in your .env file');
     }
   }
 
@@ -27,23 +31,41 @@ class GoogleAIService {
     conversationHistory: string[] = []
   ): Promise<string> {
     if (!this.isGoogleAIAvailable()) {
-      throw new Error('Google AI not available');
+      throw new Error('Google AI not available - API key missing or invalid');
     }
 
     try {
       const prompt = this.buildCoachPrompt(userMessage, userData, conversationHistory);
+      console.log('🤖 Sending request to Google AI...');
+      
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       
+      console.log('✅ Google AI response received:', text.substring(0, 100) + '...');
+      
       // Ensure response is appropriate length and format
-      if (text && text.length > 50 && text.length < 2000) {
+      if (text && text.length > 20 && text.length < 3000) {
         return text;
       } else {
-        throw new Error('Response too short or too long');
+        throw new Error(`Response length invalid: ${text.length} characters`);
       }
     } catch (error) {
-      console.error('Google AI generation failed:', error);
+      console.error('❌ Google AI generation failed:', error);
+      
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('quota') || error.message.includes('429')) {
+          throw new Error('Rate limit exceeded - too many requests');
+        }
+        if (error.message.includes('API key') || error.message.includes('401')) {
+          throw new Error('API key invalid or unauthorized');
+        }
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          throw new Error('Network error - check internet connection');
+        }
+      }
+      
       throw error;
     }
   }
@@ -72,40 +94,42 @@ class GoogleAIService {
     userData: UserSkillData, 
     conversationHistory: string[]
   ): string {
-    return `You are ${userData.name}'s personal career mentor and coach. You have a casual, friendly style that feels like talking to a real person, not an AI. Think of yourself as a mix between a supportive friend and an experienced professional who genuinely cares about their growth.
+    return `You are ${userData.name}'s AI Career Coach and colleague. You're like that really supportive coworker who genuinely cares about their growth and success. You have a warm, encouraging, but professional tone - think of yourself as a mentor who's also a friend.
 
 USER PROFILE:
-- Experience: ${userData.experienceLevel} level as ${userData.currentRole}
-- Skills they have: ${userData.currentSkills.join(', ')}
-- What they want: ${userData.careerGoals.join(', ')}
-- Their struggles: ${userData.workplaceChallenges.join(', ')}
-- Areas to work on: ${userData.improvementAreas.join(', ')}
-- Time available: ${userData.availableTimePerWeek} hours/week
-- How they learn best: ${userData.preferredLearningStyle}
+- Experience: ${userData.experienceLevel} level ${userData.currentRole}
+- Current Skills: ${userData.currentSkills.join(', ')}
+- Career Goals: ${userData.careerGoals.join(', ')}
+- Challenges: ${userData.workplaceChallenges.join(', ')}
+- Growth Areas: ${userData.improvementAreas.join(', ')}
+- Available Time: ${userData.availableTimePerWeek} hours/week
+- Learning Style: ${userData.preferredLearningStyle}
 
-CHAT HISTORY:
-${conversationHistory.join('\n')}
+RECENT CONVERSATION:
+${conversationHistory.slice(-3).join('\n')}
 
 THEY JUST SAID: "${userMessage}"
 
 HOW TO RESPOND:
-- Be super conversational and casual - use "Hey", "So", "Look", "Honestly", etc.
-- Share personal-sounding anecdotes like "I once had a colleague who..."
-- Keep things brief and to the point - 2-3 short paragraphs max
-- Use simple formatting with line breaks between thoughts
-- Add 1-2 emojis that a real person would use, not excessive
-- Use simple bullet points only when listing specific advice
-- Always personalize with their name, goals and challenges
-- End with a genuine-sounding question to continue the conversation
-- If discussing roadmaps, sound excited and personally invested
-- For skill assessment, be honest but supportive like a real mentor would be
+- Be genuinely enthusiastic about helping them succeed
+- Use a warm, colleague-like tone - friendly but professional
+- Keep responses conversational and approachable
+- Share insights as if you're brainstorming together
+- Use "we" and "let's" to make it collaborative
+- Be specific to their situation and goals
+- Keep it to 2-3 paragraphs max
+- End with an engaging question or suggestion
+- Use emojis sparingly and naturally (1-2 max)
+- Refer to their specific goals and challenges by name
 
 IMPORTANT:
-- Format your text with proper spacing and line breaks
-- Use markdown sparingly (bold only for key points, not whole paragraphs)
-- Never use technical language about AI or models
+- Don't be overly formal or robotic
+- Be encouraging but realistic
+- Show you remember their journey and context
+- Make them feel heard and understood
+- Focus on actionable advice they can use
 
-Now respond as their personal coach and mentor:`;
+Respond as their supportive AI career coach:`;
   }
 
   private static buildRoadmapPrompt(userData: UserSkillData): string {

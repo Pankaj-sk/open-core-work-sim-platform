@@ -213,7 +213,6 @@ const ProjectPage: React.FC = () => {
     if (!projectId || !projectData) return;
     
     try {
-      setDashboardLoading(true);
       const [dashboardResponse, tasksResponse] = await Promise.all([
         apiService.getDashboardData(projectId),
         apiService.getRoleTasks(projectId, projectData.user_role)
@@ -263,7 +262,7 @@ const ProjectPage: React.FC = () => {
         tasks: []
       });
     } finally {
-      setDashboardLoading(false);
+      // Dashboard data loaded
     }
   };
 

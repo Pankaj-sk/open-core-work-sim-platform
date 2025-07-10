@@ -49,6 +49,7 @@ export class DataManager {
     CURRENT_PROJECT_ID: 'currentProjectId',
     CURRENT_PROJECT_CONTEXT: 'currentProjectContext',
     COACH_CHAT_HISTORY: 'coachChatHistory',
+    ROADMAP_DATA: 'roadmapData',
     APP_VERSION: 'appVersion'
   };
 
@@ -189,6 +190,34 @@ export class DataManager {
       }
     }
     return `${(total / 1024).toFixed(2)} KB`;
+  }
+
+  // Get user data (alias for getUserSkillData)
+  static getUserData(): UserSkillData | null {
+    return this.getUserSkillData();
+  }
+
+  // Save roadmap data
+  static saveRoadmapData(roadmapData: any): void {
+    localStorage.setItem(this.STORAGE_KEYS.ROADMAP_DATA, JSON.stringify(roadmapData));
+  }
+
+  // Get roadmap data
+  static getRoadmapData(): any {
+    const data = localStorage.getItem(this.STORAGE_KEYS.ROADMAP_DATA);
+    return data ? JSON.parse(data) : null;
+  }
+
+  // Set current project
+  static setCurrentProject(project: any): void {
+    localStorage.setItem(this.STORAGE_KEYS.CURRENT_PROJECT_ID, project.id);
+    localStorage.setItem(this.STORAGE_KEYS.CURRENT_PROJECT_CONTEXT, JSON.stringify(project));
+  }
+
+  // Get current project
+  static getCurrentProject(): any {
+    const data = localStorage.getItem(this.STORAGE_KEYS.CURRENT_PROJECT_CONTEXT);
+    return data ? JSON.parse(data) : null;
   }
 }
 

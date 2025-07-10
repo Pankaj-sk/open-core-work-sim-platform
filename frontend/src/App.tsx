@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import './App.css';
@@ -8,15 +7,20 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import OnboardingPage from './pages/OnboardingPageNew';
 import DashboardPage from './pages/DashboardPage';
-import ProjectPage from './pages/ProjectPage';
-import ConversationPage from './pages/ConversationPage';
 import CoachPage from './pages/CoachPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import EnhancedProjectPage from './pages/EnhancedProjectPage';
+import ConversationPage from './pages/ConversationPage';
+import RoadmapGenerationPage from './pages/RoadmapGenerationPage';
+import RoadmapPage from './pages/RoadmapPage';
+import RoadmapDetailsPage from './pages/RoadmapDetailsPage';
 import DebriefPage from './pages/DebriefPage';
-import AgentsPage from './pages/AgentsPage';
-import AICoachChat from './components/AICoachChat';
+import CoachIntroPage from './pages/CoachIntroPage';
+import UserProfilePage from './pages/UserProfilePage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './components/ui/toast-provider';
 import DataManager from './utils/dataManager';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Protected Route Component that also checks for onboarding completion
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -49,8 +53,28 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
+// Utility to check if setup is fully complete
+const isSetupComplete = () => {
+  return (
+    DataManager.hasCompletedOnboarding() &&
+    !!DataManager.getRoadmapData() &&
+    !!DataManager.getUserProgress() &&
+    localStorage.getItem('roadmapConfirmed') === 'true'
+  );
+};
+
 function AppContent() {
   const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  // Prevent access to onboarding or roadmap generation after setup
+  if (
+    isAuthenticated &&
+    isSetupComplete() &&
+    (location.pathname === '/onboarding' || location.pathname === '/roadmap-generation')
+  ) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -62,30 +86,38 @@ function AppContent() {
           <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
           <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/project" element={<ProtectedRoute><ProjectPage /></ProtectedRoute>} />
-          <Route path="/project/:projectId" element={<ProtectedRoute><ProjectPage /></ProtectedRoute>} />
-          <Route path="/project/conversations/:conversationId" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
           <Route path="/coach" element={<ProtectedRoute><CoachPage /></ProtectedRoute>} />
-          <Route path="/agents" element={<ProtectedRoute><AgentsPage /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
+          <Route path="/roadmap" element={<ProtectedRoute><RoadmapPage /></ProtectedRoute>} />
+          <Route path="/project" element={<ProtectedRoute><EnhancedProjectPage /></ProtectedRoute>} />
+          <Route path="/project/:projectId" element={<ProtectedRoute><EnhancedProjectPage /></ProtectedRoute>} />
+          <Route path="/project/conversations/:conversationId" element={<ProtectedRoute><ConversationPage /></ProtectedRoute>} />
+          <Route path="/roadmap-generation" element={<ProtectedRoute><RoadmapGenerationPage /></ProtectedRoute>} />
+          <Route path="/roadmap-details" element={<ProtectedRoute><RoadmapDetailsPage /></ProtectedRoute>} />
           <Route path="/debrief" element={<ProtectedRoute><DebriefPage /></ProtectedRoute>} />
+          <Route path="/coach-intro" element={<ProtectedRoute><CoachIntroPage /></ProtectedRoute>} />
+          <Route path="/user-profile" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
+          {/* Redirect legacy routes to new structure */}
+          <Route path="/workspace" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/coach-chat" element={<Navigate to="/coach" replace />} />
+          <Route path="/agents" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
-      
-      {/* AI Coach Chat - appears on all pages when authenticated */}
-      {isAuthenticated && <AICoachChat />}
     </div>
   );
 }
 
 function App() {
   return (
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <AppContent />
-        <ToastProvider />
-      </AuthProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <AppContent />
+          <ToastProvider />
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
-export default App; 
+export default App;

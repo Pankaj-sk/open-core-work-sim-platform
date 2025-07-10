@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, Play, Home, Settings, LogIn, UserPlus, LogOut, User, Brain, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Users, Play, Home, Settings, LogIn, UserPlus, LogOut, User, Brain, RotateCcw, AlertTriangle, Target, TrendingUp, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { 
@@ -21,18 +21,40 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import DataManager from '../utils/dataManager';
 
+const isSetupComplete = () => {
+  return (
+    DataManager.hasCompletedOnboarding() &&
+    !!DataManager.getRoadmapData() &&
+    !!DataManager.getUserProgress()
+  );
+};
+
 const Header: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [roadmapConfirmed, setRoadmapConfirmed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('roadmapConfirmed') === 'true';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      setRoadmapConfirmed(localStorage.getItem('roadmapConfirmed') === 'true');
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
 
   const navItems = [
     { path: '/', label: 'Home', icon: Home, public: true },
-    { path: '/dashboard', label: 'Dashboard', icon: User, public: false },
-    { path: '/project', label: 'Projects', icon: Play, public: false },
-    { path: '/agents', label: 'Agents', icon: Users, public: false },
-    { path: '/coach', label: 'AI Coach', icon: Brain, public: false },
+    { path: '/dashboard', label: 'Dashboard', icon: Target, public: false },
+    { path: '/coach', label: 'Coach', icon: Brain, public: false },
+    { path: '/roadmap', label: 'Roadmap', icon: TrendingUp, public: false },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3, public: false },
   ];
 
   const handleLogout = () => {
@@ -68,8 +90,8 @@ const Header: React.FC = () => {
           
           <nav className="flex items-center space-x-2">
             {navItems.map((item) => {
-              // Show public items always, protected items only when authenticated
-              if (!item.public && !isAuthenticated) {
+              // Show public items always, protected items only when authenticated AND setup is complete
+              if (!item.public && (!isAuthenticated || !isSetupComplete())) {
                 return null;
               }
               

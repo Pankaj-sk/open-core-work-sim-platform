@@ -11,12 +11,21 @@ import {
   Settings,
   User,
   Bell,
-  Search
+  Search,
+  Target
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import DataManager from '../utils/dataManager';
+
+interface NavigationItem {
+  label: string;
+  path: string;
+  icon: React.ReactNode;
+  description: string;
+  badge?: string;
+}
 
 const EnhancedNavigation: React.FC = () => {
   const navigate = useNavigate();
@@ -24,44 +33,45 @@ const EnhancedNavigation: React.FC = () => {
   const userData = DataManager.getUserSkillData();
   const userProgress = DataManager.getUserProgress();
 
-  const navigationItems = [
+  const [roadmapConfirmed, setRoadmapConfirmed] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('roadmapConfirmed') === 'true';
+    }
+    return false;
+  });
+  React.useEffect(() => {
+    const handler = () => {
+      setRoadmapConfirmed(localStorage.getItem('roadmapConfirmed') === 'true');
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
+  const navigationItems: NavigationItem[] = [
     {
       label: 'Dashboard',
       path: '/dashboard',
       icon: <Home className="w-4 h-4" />,
-      description: 'Overview and quick actions'
+      description: 'Project overview and analytics'
     },
     {
-      label: 'AI Coach',
+      label: 'Coach',
       path: '/coach',
       icon: <Brain className="w-4 h-4" />,
-      description: 'Personal mentor and guidance',
-      badge: 'AI'
+      description: 'Chat with your AI coach'
     },
     {
-      label: 'Projects',
-      path: '/project',
-      icon: <Briefcase className="w-4 h-4" />,
-      description: 'Practice scenarios and challenges'
-    },
-    {
-      label: 'AI Agents',
-      path: '/agents',
-      icon: <Users className="w-4 h-4" />,
-      description: 'Team members and personas'
-    },
-    {
-      label: 'Conversations',
-      path: '/conversation',
-      icon: <MessageSquare className="w-4 h-4" />,
-      description: 'Chat history and analysis'
+      label: 'Roadmap',
+      path: '/roadmap',
+      icon: <Target className="w-4 h-4" />,
+      description: 'Detailed career roadmap'
     },
     {
       label: 'Analytics',
       path: '/analytics',
       icon: <BarChart3 className="w-4 h-4" />,
-      description: 'Progress tracking and insights'
-    }
+      description: 'Performance insights and analysis'
+    },
   ];
 
   const isActivePath = (path: string) => {
@@ -88,31 +98,33 @@ const EnhancedNavigation: React.FC = () => {
           {/* Main Navigation */}
           <div className="hidden md:flex items-center space-x-1">
             {navigationItems.map((item) => (
-              <Button
-                key={item.path}
-                variant={isActivePath(item.path) ? "default" : "ghost"}
-                onClick={() => navigate(item.path)}
-                className={`relative flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
-                  isActivePath(item.path) 
-                    ? 'bg-blue-600 text-white shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-                title={item.description}
-              >
-                {item.icon}
-                <span className="text-sm font-medium">{item.label}</span>
-                {item.badge && (
-                  <Badge 
-                    variant="secondary" 
-                    className="ml-1 text-xs bg-purple-100 text-purple-700"
-                  >
-                    {item.badge}
-                  </Badge>
-                )}
-                {isActivePath(item.path) && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-300 rounded-full"></div>
-                )}
-              </Button>
+              roadmapConfirmed ? (
+                <Button
+                  key={item.path}
+                  variant={isActivePath(item.path) ? "default" : "ghost"}
+                  onClick={() => navigate(item.path)}
+                  className={`relative flex items-center space-x-2 px-3 py-2 rounded-lg transition-all ${
+                    isActivePath(item.path) 
+                      ? 'bg-blue-600 text-white shadow-sm' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title={item.description}
+                >
+                  {item.icon}
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {item.badge && (
+                    <Badge 
+                      variant="secondary" 
+                      className="ml-1 text-xs bg-purple-100 text-purple-700"
+                    >
+                      {item.badge}
+                    </Badge>
+                  )}
+                  {isActivePath(item.path) && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-300 rounded-full"></div>
+                  )}
+                </Button>
+              ) : null
             ))}
           </div>
 

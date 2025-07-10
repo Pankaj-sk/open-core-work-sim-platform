@@ -5,9 +5,20 @@ import { Target, Award, LogIn, UserPlus, Brain, MessageSquare, BarChart3 } from 
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { useAuth } from '../contexts/AuthContext';
+import DataManager from '../utils/dataManager';
+
+const isSetupComplete = () => {
+  return (
+    DataManager.hasCompletedOnboarding() &&
+    !!DataManager.getRoadmapData() &&
+    !!DataManager.getUserProgress() &&
+    localStorage.getItem('roadmapConfirmed') === 'true'
+  );
+};
 
 const HomePage: React.FC = () => {
   const { isAuthenticated } = useAuth();
+  const setupComplete = isSetupComplete();
 
   const features = [
     {
@@ -85,9 +96,16 @@ const HomePage: React.FC = () => {
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
             {isAuthenticated ? (
-              <Link to="/dashboard" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">
-                Go to Dashboard
-              </Link>
+              setupComplete ? (
+                <Link to="/dashboard" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <Link to="/onboarding" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">
+                  <UserPlus className="mr-2 h-5 w-5" />
+                  Start Your Journey
+                </Link>
+              )
             ) : (
               <>
                 <Link to="/register" className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-lg font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 py-6">

@@ -163,8 +163,8 @@ npm start
 
 #### **4. Access the Application**
 - **Frontend (User Interface)**: http://localhost:3000
-- **Backend API**: http://localhost:5000
-- **API Documentation**: http://localhost:5000/docs (FastAPI auto-generated docs)
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs (FastAPI auto-generated docs)
 
 ### **Quick Start Commands**
 
@@ -208,11 +208,15 @@ DATABASE_URL=sqlite:///simulation.db
 SECRET_KEY=your-unique-secret-key-change-in-production
 JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
 
+# FastAPI/Uvicorn Configuration
+ENVIRONMENT=development
+DEBUG=true
+
 # Server Configuration
-HOST=localhost
-PORT=5000
-FLASK_ENV=development
-FLASK_DEBUG=true
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+RELOAD=true
+LOG_LEVEL=info
 
 # AI Model Settings
 AI_PROVIDER=google
@@ -461,7 +465,7 @@ node --version  # Should be 16+
 
 ### **Getting Help**
 - Check the [Issues](issues) section for known problems
-- Review API documentation at `http://localhost:5000/docs`
+- Review API documentation at `http://localhost:8000/docs`
 - Examine browser console and backend logs for error messages
 
 ---
